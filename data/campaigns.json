@@ -1,0 +1,112 @@
+[
+  {
+    "id": "camp_1789156349703_20bio",
+    "name": "teste",
+    "sessionId": "Teste",
+    "contacts": [
+      {
+        "number": "559299782857",
+        "name": "For4izen",
+        "status": "SENT",
+        "sentAt": "2026-09-11T19:52:29.760Z",
+        "error": null
+      },
+      {
+        "number": "5511939407906",
+        "name": "arthur",
+        "status": "SENT",
+        "sentAt": "2026-09-11T19:52:41.800Z",
+        "error": null
+      }
+    ],
+    "message": "olá {nome}",
+    "delayMin": 5,
+    "delayMax": 12,
+    "scheduledFor": null,
+    "status": "COMPLETED",
+    "currentIndex": 2,
+    "sentCount": 2,
+    "failedCount": 0,
+    "totalCount": 2,
+    "logs": [
+      {
+        "time": "2026-09-11T19:52:29.703Z",
+        "message": "Campanha criada com 2 contatos.",
+        "type": "info"
+      },
+      {
+        "time": "2026-09-11T19:52:29.761Z",
+        "message": "✓ [1/2] Enviado para 559299782857 (For4izen)",
+        "type": "success"
+      },
+      {
+        "time": "2026-09-11T19:52:41.800Z",
+        "message": "✓ [2/2] Enviado para 5511939407906 (arthur)",
+        "type": "success"
+      },
+      {
+        "time": "2026-09-11T19:52:41.801Z",
+        "message": "🏁 Campanha concluída com sucesso! Total: 2 | Enviadas: 2 | Falhas: 0",
+        "type": "info"
+      }
+    ],
+    "createdAt": "2026-09-11T19:52:29.703Z",
+    "startedAt": "2026-09-11T19:52:29.704Z",
+    "finishedAt": "2026-09-11T19:52:41.801Z"
+  },
+  {
+    "id": "camp_1789153918349_szzdo",
+    "name": "Teste",
+    "sessionId": "teste",
+    "contacts": [
+      {
+        "number": "559299782857",
+        "name": "For4izen",
+        "status": "SENT",
+        "sentAt": "2026-09-11T19:11:58.415Z",
+        "error": null
+      },
+      {
+        "number": "5511939407906",
+        "name": "arthur",
+        "status": "SENT",
+        "sentAt": "2026-09-11T19:12:09.763Z",
+        "error": null
+      }
+    ],
+    "message": "olá {nome}",
+    "delayMin": 5,
+    "delayMax": 12,
+    "scheduledFor": null,
+    "status": "COMPLETED",
+    "currentIndex": 2,
+    "sentCount": 2,
+    "failedCount": 0,
+    "totalCount": 2,
+    "logs": [
+      {
+        "time": "2026-09-11T19:11:58.349Z",
+        "message": "Campanha criada com 2 contatos.",
+        "type": "info"
+      },
+      {
+        "time": "2026-09-11T19:11:58.415Z",
+        "message": "✓ [1/2] Enviado para 559299782857 (For4izen)",
+        "type": "success"
+      },
+      {
+        "time": "2026-09-11T19:12:09.763Z",
+        "message": "✓ [2/2] Enviado para 5511939407906 (arthur)",
+        "type": "success"
+      },
+      {
+        "time": "2026-09-11T19:12:09.764Z",
+        "message": "🏁 Campanha concluída com sucesso! Total: 2 | Enviadas: 2 | Falhas: 0",
+        "type": "info"
+      }
+    ],
+    "createdAt": "2026-09-11T19:11:58.349Z",
+    "startedAt": "2026-09-11T19:11:58.350Z",
+    "finishedAt": "2026-09-11T19:12:09.764Z"
+  }
+]

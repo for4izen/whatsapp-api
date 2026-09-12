@@ -11,6 +11,15 @@ if (!baseWebhookURL) {
   process.exit(1) // Terminate the application with an error code
 }
 
+// Prevent process crash from unhandled library rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+})
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+})
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`)
 })

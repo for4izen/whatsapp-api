@@ -142,11 +142,85 @@ const fetchMessages = async (req, res) => {
   */
     const { chatId, searchOptions } = req.body
     const client = sessions.get(req.params.sessionId)
+    if (!client) {
+      return sendErrorResponse(res, 404, 'Session not Found')
+    }
     const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
-    const messages = await chat.fetchMessages(searchOptions)
+    if (!chat) { 
+      return sendErrorResponse(res, 404, 'Chat not Found') 
+    }
+    const options = searchOptions || { limit: 200 }
+    let rawMessages = []
+
+    try {
+      rawMessages = await chat.fetchMessages(options)
+    } catch (e) {
+      console.log('chat.fetchMessages internal error, trying direct browser query:', e.message)
+    }
+
+    // Direct Browser Evaluate Fallback: guarantees messages are fetched from WhatsApp Web Collections directly
+    if (!rawMessages || rawMessages.length === 0) {
+      try {
+        const directMessages = await client.pupPage.evaluate(async (targetChatId, limit) => {
+          const chatWid = window.require('WAWebWidFactory').createWid(targetChatId)
+          let chatModel = window.require('WAWebCollections').Chat.get(chatWid)
+          if (!chatModel && window.require('WAWebFindChatAction')) {
+            chatModel = (await window.require('WAWebFindChatAction').findOrCreateLatestChat(chatWid))?.chat
+          }
+          if (!chatModel) return []
+
+          // Try to load earlier messages if collection has few
+          try {
+            if (window.require('WAWebChatLoadMessages')) {
+              await window.require('WAWebChatLoadMessages').loadEarlierMsgs({ chat: chatModel })
+            }
+          } catch (_) {}
+
+          const msgsArray = chatModel.msgs ? chatModel.msgs.getModelsArray() : []
+          const filtered = msgsArray.filter(m => !m.isNotification)
+          const slice = limit > 0 ? filtered.slice(-limit) : filtered
+
+          return slice.map(m => ({
+            id: m.id?._serialized || m.id?.id,
+            body: m.body || m.caption || '',
+            type: m.type,
+            timestamp: m.t || 0,
+            fromMe: Boolean(m.id?.fromMe),
+            from: m.from?._serialized || m.from,
+            to: m.to?._serialized || m.to,
+            author: m.author?._serialized || m.author || null,
+            notifyName: m.notifyName || m.sender?.pushname || null,
+            hasMedia: Boolean(m.directPath || m.mediaKey),
+            ack: m.ack
+          }))
+        }, chatId, options.limit || 200)
+
+        if (directMessages && directMessages.length > 0) {
+          return res.json({ success: true, messages: directMessages })
+        }
+      } catch (browserErr) {
+        console.error('Direct browser query failed:', browserErr.message)
+      }
+    }
+    
+    // Explicit clean serialization so the frontend always receives the exact message text and sender
+    const messages = (rawMessages || []).map(m => ({
+      id: m.id?._serialized || m.id?.id,
+      body: m.body || m._data?.body || m._data?.caption || '',
+      type: m.type,
+      timestamp: m.timestamp || m._data?.t || 0,
+      fromMe: Boolean(m.fromMe !== undefined ? m.fromMe : m.id?.fromMe),
+      from: m.from,
+      to: m.to,
+      author: m.author || m._data?.author,
+      notifyName: m._data?.notifyName || null,
+      hasMedia: Boolean(m.hasMedia),
+      ack: m.ack
+    }))
+
     res.json({ success: true, messages })
   } catch (error) {
+    console.error('fetchMessages ERROR:', error)
     sendErrorResponse(res, 500, error.message)
   }
 }

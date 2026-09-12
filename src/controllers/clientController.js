@@ -323,9 +323,75 @@ const getContacts = async (req, res) => {
 const getChats = async (req, res) => {
   try {
     const client = sessions.get(req.params.sessionId)
-    const chats = await client.getChats()
+    if (!client) {
+      return sendErrorResponse(res, 404, 'Session not found')
+    }
+
+    let chats = []
+
+    // 1. Direct and robust browser query (instant, never gets stuck on group metadata update)
+    try {
+      const browserChats = await client.pupPage.evaluate(() => {
+        if (!window.require) return []
+        const chatCollection = window.require('WAWebCollections')?.Chat
+        if (!chatCollection) return []
+        const models = chatCollection.getModelsArray ? chatCollection.getModelsArray() : []
+
+        return models.map(c => {
+          const idStr = c.id?._serialized || (typeof c.id === 'string' ? c.id : '')
+          const lastMsg = c.lastReceivedKey
+            ? window.require('WAWebCollections')?.Msg?.get(c.lastReceivedKey._serialized)
+            : (c.msgs && c.msgs.length ? c.msgs.last() : null)
+
+          return {
+            id: c.id || { _serialized: idStr },
+            name: c.name || c.formattedTitle || (idStr.split('@')[0]) || 'Contato',
+            isGroup: Boolean(c.isGroup || (idStr && idStr.endsWith('@g.us'))),
+            unreadCount: c.unreadCount || 0,
+            timestamp: c.t || c.timestamp || 0,
+            archived: Boolean(c.archive || c.archived),
+            pinned: Boolean(c.pin || c.pinned),
+            lastMessage: lastMsg ? {
+              body: lastMsg.body || lastMsg.caption || '',
+              type: lastMsg.type,
+              timestamp: lastMsg.t || 0,
+              fromMe: Boolean(lastMsg.id?.fromMe)
+            } : null
+          }
+        })
+      })
+
+      if (browserChats && browserChats.length > 0) {
+        // Sort by most recent timestamp descending
+        browserChats.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        return res.json({ success: true, chats: browserChats })
+      }
+    } catch (e) {
+      console.log('Direct getChats query fallback error:', e.message)
+    }
+
+    // 2. Standard library getChats fallback
+    const rawChats = await client.getChats()
+    chats = (rawChats || []).map(c => ({
+      id: c.id,
+      name: c.name || c.formattedTitle || (c.id?._serialized ? c.id._serialized.split('@')[0] : 'Contato'),
+      isGroup: Boolean(c.isGroup),
+      unreadCount: c.unreadCount || 0,
+      timestamp: c.timestamp || 0,
+      archived: Boolean(c.archived),
+      pinned: Boolean(c.pinned),
+      lastMessage: c.lastMessage ? {
+        body: c.lastMessage.body,
+        type: c.lastMessage.type,
+        timestamp: c.lastMessage.timestamp,
+        fromMe: c.lastMessage.fromMe
+      } : null
+    }))
+
+    chats.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
     res.json({ success: true, chats })
   } catch (error) {
+    console.error('getChats ERROR:', error)
     sendErrorResponse(res, 500, error.message)
   }
 }

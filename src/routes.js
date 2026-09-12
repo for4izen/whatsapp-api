@@ -12,6 +12,8 @@ const chatController = require('./controllers/chatController')
 const groupChatController = require('./controllers/groupChatController')
 const messageController = require('./controllers/messageController')
 const contactController = require('./controllers/contactController')
+const broadcastController = require('./controllers/broadcastController')
+const typebotController = require('./controllers/typebotController')
 
 /**
  * ================
@@ -28,6 +30,43 @@ if (enableLocalCallbackExample) {
 
 /**
  * ================
+ * BROADCAST & SCHEDULE ENDPOINTS
+ * ================
+ */
+
+const broadcastRouter = express.Router()
+broadcastRouter.use(middleware.apikey)
+routes.use('/broadcast', broadcastRouter)
+
+broadcastRouter.post('/create', broadcastController.createCampaign)
+broadcastRouter.get('/list', broadcastController.listCampaigns)
+broadcastRouter.get('/:id', broadcastController.getCampaign)
+broadcastRouter.post('/pause/:id', broadcastController.pauseCampaign)
+broadcastRouter.post('/resume/:id', broadcastController.resumeCampaign)
+broadcastRouter.post('/cancel/:id', broadcastController.cancelCampaign)
+broadcastRouter.delete('/:id', broadcastController.deleteCampaign)
+
+/**
+ * ================
+ * TYPEBOT FLOW ENDPOINTS
+ * ================
+ */
+const typebotRouter = express.Router()
+typebotRouter.use(middleware.apikey)
+routes.use('/typebot', typebotRouter)
+
+typebotRouter.get('/:sessionId', typebotController.getFlow)
+typebotRouter.post('/:sessionId', typebotController.saveFlow)
+typebotRouter.post('/:sessionId/reset-state', typebotController.resetStates)
+typebotRouter.post('/:sessionId/simulate', typebotController.simulate)
+typebotRouter.post('/:sessionId/clone', typebotController.cloneFlow)
+
+
+
+
+
+/**
+ * ================
  * SESSION ENDPOINTS
  * ================
  */
@@ -36,13 +75,32 @@ sessionRouter.use(middleware.apikey)
 sessionRouter.use(middleware.sessionSwagger)
 routes.use('/session', sessionRouter)
 
+// List all sessions (memory + disk)
+sessionRouter.get('/list', sessionController.listSessions)
+
+// Start session (Standard POST + Legacy GET)
+sessionRouter.post('/start/:sessionId', middleware.sessionNameValidation, sessionController.startSession)
 sessionRouter.get('/start/:sessionId', middleware.sessionNameValidation, sessionController.startSession)
+
+// Status & QR Codes (GET)
 sessionRouter.get('/status/:sessionId', middleware.sessionNameValidation, sessionController.statusSession)
 sessionRouter.get('/qr/:sessionId', middleware.sessionNameValidation, sessionController.sessionQrCode)
 sessionRouter.get('/qr/:sessionId/image', middleware.sessionNameValidation, sessionController.sessionQrCodeImage)
+
+// Restart session (Standard POST + Legacy GET)
+sessionRouter.post('/restart/:sessionId', middleware.sessionNameValidation, sessionController.restartSession)
 sessionRouter.get('/restart/:sessionId', middleware.sessionNameValidation, sessionController.restartSession)
+
+// Terminate single session (Standard POST + Legacy GET)
+sessionRouter.post('/terminate/:sessionId', middleware.sessionNameValidation, sessionController.terminateSession)
 sessionRouter.get('/terminate/:sessionId', middleware.sessionNameValidation, sessionController.terminateSession)
+
+// Terminate inactive sessions (Standard POST + Legacy GET)
+sessionRouter.post('/terminateInactive', sessionController.terminateInactiveSessions)
 sessionRouter.get('/terminateInactive', sessionController.terminateInactiveSessions)
+
+// Terminate all sessions (Standard POST + Legacy GET)
+sessionRouter.post('/terminateAll', sessionController.terminateAllSessions)
 sessionRouter.get('/terminateAll', sessionController.terminateAllSessions)
 
 /**
@@ -187,5 +245,10 @@ if (enableSwaggerEndpoint) {
   routes.use('/api-docs', swaggerUi.serve)
   routes.get('/api-docs', swaggerUi.setup(swaggerDocument) /* #swagger.ignore = true */)
 }
+
+// Redirect root / to /dashboard/
+routes.get('/', (req, res) => {
+  res.redirect('/dashboard/')
+})
 
 module.exports = { routes }

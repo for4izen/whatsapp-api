@@ -4,6 +4,8 @@ const path = require('path')
 const sessions = new Map()
 const { baseWebhookURL, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, webVersion, webVersionCacheType, recoverSessions } = require('./config')
 const { triggerWebhook, waitForNestedObject, checkIfEventisEnabled } = require('./utils')
+const typebotManager = require('./typebotManager')
+
 
 // Function to validate if the session is ready
 const validateSession = async (sessionId) => {
@@ -41,7 +43,14 @@ const validateSession = async (sessionId) => {
       }
     }
 
-    const state = await client.getState()
+    let state = null
+    try {
+      state = await client.getState()
+    } catch (_) {
+      // WhatsApp Web module window.require is not yet loaded/evaluable
+      state = null
+    }
+
     returnData.state = state
     if (state !== 'CONNECTED') {
       returnData.message = 'session_not_connected'
@@ -53,7 +62,6 @@ const validateSession = async (sessionId) => {
     returnData.message = 'session_connected'
     return returnData
   } catch (error) {
-    console.log(error)
     return { success: false, state: null, message: error.message }
   }
 }
@@ -127,6 +135,32 @@ const setupSession = (sessionId) => {
     }
 
     const client = new Client(clientOptions)
+
+    // Polyfill isConnected on pupBrowser and safe exposeFunction on pupPage for Puppeteer v25+ compatibility
+    waitForNestedObject(client, 'pupBrowser').then(() => {
+      if (client.pupBrowser && typeof client.pupBrowser.isConnected !== 'function') {
+        client.pupBrowser.isConnected = function () {
+          return Boolean(this.connected)
+        }
+      }
+    }).catch(() => {})
+
+    waitForNestedObject(client, 'pupPage').then(() => {
+      if (client.pupPage && client.pupPage.exposeFunction) {
+        const originalExposeFunction = client.pupPage.exposeFunction.bind(client.pupPage)
+        client.pupPage.exposeFunction = async function (name, fn) {
+          try {
+            return await originalExposeFunction(name, fn)
+          } catch (err) {
+            if (err.message && err.message.includes('already exists')) {
+              // Ignore already exposed binding
+              return
+            }
+            throw err
+          }
+        }
+      }
+    }).catch(() => {})
 
     client.initialize().catch(err => console.log('Initialize error:', err.message))
 
@@ -238,7 +272,17 @@ const initializeEvents = (client, sessionId) => {
     .then(_ => {
       client.on('message', async (message) => {
         triggerWebhook(sessionWebhook, sessionId, 'message', { message })
+
+        // Processar fluxo de Typebot configurado para esta sessão
+        try {
+          typebotManager.handleIncomingMessage(sessionId, message, client)
+        } catch (botErr) {
+          console.error(`[Typebot] Erro ao processar mensagem na sessão ${sessionId}:`, botErr.message)
+        }
+
         if (message.hasMedia && message._data?.size < maxAttachmentSize) {
+
+
           // custom service event
           checkIfEventisEnabled('media').then(_ => {
             message.downloadMedia().then(messageMedia => {
@@ -249,8 +293,12 @@ const initializeEvents = (client, sessionId) => {
           })
         }
         if (setMessagesAsSeen) {
-          const chat = await message.getChat()
-          chat.sendSeen()
+          try {
+            const chat = await message.getChat()
+            if (chat) await chat.sendSeen()
+          } catch (e) {
+            // Ignore sendSeen failure if chat is not evaluable
+          }
         }
       })
     })
@@ -260,8 +308,12 @@ const initializeEvents = (client, sessionId) => {
       client.on('message_ack', async (message, ack) => {
         triggerWebhook(sessionWebhook, sessionId, 'message_ack', { message, ack })
         if (setMessagesAsSeen) {
-          const chat = await message.getChat()
-          chat.sendSeen()
+          try {
+            const chat = await message.getChat()
+            if (chat) await chat.sendSeen()
+          } catch (e) {
+            // Ignore sendSeen failure if chat is not evaluable
+          }
         }
       })
     })
@@ -271,8 +323,12 @@ const initializeEvents = (client, sessionId) => {
       client.on('message_create', async (message) => {
         triggerWebhook(sessionWebhook, sessionId, 'message_create', { message })
         if (setMessagesAsSeen) {
-          const chat = await message.getChat()
-          chat.sendSeen()
+          try {
+            const chat = await message.getChat()
+            if (chat) await chat.sendSeen()
+          } catch (e) {
+            // Ignore sendSeen failure if chat is not evaluable
+          }
         }
       })
     })
@@ -418,18 +474,34 @@ const deleteSession = async (sessionId, validation) => {
     }
     client.pupPage.removeAllListeners('close')
     client.pupPage.removeAllListeners('error')
+    if (client.pupBrowser && typeof client.pupBrowser.isConnected !== 'function') {
+      client.pupBrowser.isConnected = function () {
+        return Boolean(this.connected)
+      }
+    }
+
     if (validation.success) {
       // Client Connected, request logout
       console.log(`Logging out session ${sessionId}`)
-      await client.logout()
+      try {
+        await client.logout()
+      } catch (err) {
+        console.log('client.logout error, falling back to destroy:', err.message)
+        await client.destroy().catch(() => {})
+      }
     } else if (validation.message === 'session_not_connected') {
       // Client not Connected, request destroy
       console.log(`Destroying session ${sessionId}`)
-      await client.destroy()
+      await client.destroy().catch(() => {})
     }
-    // Wait 10 secs for client.pupBrowser to be disconnected before deleting the folder
+    // Wait for client.pupBrowser to disconnect before deleting the folder
     let maxDelay = 0
-    while (client.pupBrowser.isConnected() && (maxDelay < 10)) {
+    const checkConnected = () => {
+      if (!client.pupBrowser) return false
+      if (typeof client.pupBrowser.isConnected === 'function') return client.pupBrowser.isConnected()
+      return Boolean(client.pupBrowser.connected)
+    }
+    while (checkConnected() && (maxDelay < 10)) {
       await new Promise(resolve => setTimeout(resolve, 1000))
       maxDelay++
     }
@@ -464,6 +536,87 @@ const flushSessions = async (deleteOnlyInactive) => {
   }
 }
 
+// Function to list all sessions (from memory and disk) with detailed status
+const listAllSessions = async () => {
+  try {
+    const sessionList = []
+    const sessionIds = new Set()
+
+    // 1. Collect all sessions stored in disk folder
+    if (fs.existsSync(sessionFolderPath)) {
+      const files = await fs.promises.readdir(sessionFolderPath)
+      for (const file of files) {
+        const match = file.match(/^session-(.+)$/)
+        if (match) {
+          sessionIds.add(match[1])
+        }
+      }
+    }
+
+    // 2. Collect any active sessions in memory
+    for (const sessionId of sessions.keys()) {
+      sessionIds.add(sessionId)
+    }
+
+    // 3. Inspect each session state
+    for (const sessionId of sessionIds) {
+      const client = sessions.get(sessionId)
+      let status = 'STOPPED'
+      let isConnected = false
+      let hasQr = false
+      let user = null
+
+      if (client) {
+        if (client.qr) {
+          hasQr = true
+          status = 'WAITING_QR'
+        }
+
+        try {
+          if (client.pupPage && !client.pupPage.isClosed()) {
+            const state = await Promise.race([
+              client.getState().catch(() => null),
+              new Promise((resolve) => setTimeout(() => resolve(null), 800))
+            ])
+
+            if (state === 'CONNECTED') {
+              status = 'CONNECTED'
+              isConnected = true
+              if (client.info) {
+                user = {
+                  wid: client.info.wid ? client.info.wid._serialized : null,
+                  pushname: client.info.pushname || null,
+                  platform: client.info.platform || null
+                }
+              }
+            } else if (state) {
+              status = state
+            } else if (!hasQr) {
+              status = 'INITIALIZING'
+            }
+          }
+        } catch (_) {
+          status = 'ERROR'
+        }
+      }
+
+      sessionList.push({
+        sessionId,
+        status,
+        isConnected,
+        hasQr,
+        user,
+        inMemory: !!client
+      })
+    }
+
+    return sessionList
+  } catch (error) {
+    console.error('listAllSessions error:', error)
+    return []
+  }
+}
+
 module.exports = {
   sessions,
   setupSession,
@@ -471,5 +624,6 @@ module.exports = {
   validateSession,
   deleteSession,
   reloadSession,
-  flushSessions
+  flushSessions,
+  listAllSessions
 }

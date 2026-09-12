@@ -1,5 +1,5 @@
 const qr = require('qr-image')
-const { setupSession, deleteSession, reloadSession, validateSession, flushSessions, sessions } = require('../sessions')
+const { setupSession, deleteSession, reloadSession, validateSession, flushSessions, listAllSessions, sessions } = require('../sessions')
 const { sendErrorResponse, waitForNestedObject } = require('../utils')
 
 /**
@@ -41,22 +41,24 @@ const startSession = async (req, res) => {
       }
     }
     */
-    // wait until the client is created
-    waitForNestedObject(setupSessionReturn.client, 'pupPage')
-      .then(res.json({ success: true, message: setupSessionReturn.message }))
-      .catch((err) => { sendErrorResponse(res, 500, err.message) })
-  } catch (error) {
-  /* #swagger.responses[500] = {
-      description: "Server Failure.",
-      content: {
-        "application/json": {
-          schema: { "$ref": "#/definitions/ErrorResponse" }
+    // wait until the client is created or respond if taking longer
+    waitForNestedObject(setupSessionReturn.client, 'pupPage', 15000)
+      .then(() => {
+        if (!res.headersSent) {
+          res.json({ success: true, message: setupSessionReturn.message })
         }
-      }
-    }
-    */
+      })
+      .catch((err) => {
+        if (!res.headersSent) {
+          // If pupPage timed out waiting, still return success as browser is initializing in background
+          res.json({ success: true, message: 'Session initiated, loading browser...' })
+        }
+      })
+  } catch (error) {
     console.log('startSession ERROR', error)
-    sendErrorResponse(res, 500, error.message)
+    if (!res.headersSent) {
+      sendErrorResponse(res, 500, error.message)
+    }
   }
 }
 
@@ -363,7 +365,29 @@ const terminateAllSessions = async (req, res) => {
   }
 }
 
+/**
+ * Lists all active and saved sessions.
+ *
+ * @function
+ * @async
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} res - The HTTP response object.
+ * @returns {Promise<void>}
+ */
+const listSessions = async (req, res) => {
+  // #swagger.summary = 'List all sessions'
+  // #swagger.description = 'Lists all active in-memory and saved disk sessions.'
+  try {
+    const sessionList = await listAllSessions()
+    res.json({ success: true, message: 'Sessions retrieved successfully', data: sessionList })
+  } catch (error) {
+    console.error('listSessions ERROR', error)
+    sendErrorResponse(res, 500, 'Failed to list sessions')
+  }
+}
+
 module.exports = {
+  listSessions,
   startSession,
   statusSession,
   sessionQrCode,

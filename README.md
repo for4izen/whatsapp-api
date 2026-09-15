@@ -96,34 +96,60 @@ docker-compose pull && docker-compose up
 
 7. Disable any of the callbacks
 
-## Run Locally
+## Run Locally (Windows / Laragon / Linux)
 
-1. Clone the repository:
+### No Windows (com Laragon / Terminal)
 
-```bash
-git clone https://github.com/chrishubert/whatsapp-api.git
-cd whatsapp-api
+Se você já tem o projeto dentro da pasta `C:\laragon\www\whatsapp-api`:
+
+1. **Abrir o Terminal do Laragon** (ou PowerShell / CMD como Administrador).
+2. **Navegar até a pasta do projeto**:
+```powershell
+cd C:\laragon\www\whatsapp-api
 ```
 
-2. Install the dependencies:
+3. **Copiar o arquivo de variáveis de ambiente**:
+```powershell
+# No PowerShell:
+Copy-Item .env.example .env
 
-```bash
+# Ou no CMD do Laragon:
+copy .env.example .env
+```
+
+4. **Instalar dependências**:
+```powershell
 npm install
 ```
 
-3. Copy the `.env.example` file to `.env` and update the required environment variables:
+5. **Iniciar a aplicação**:
+```powershell
+# Modo normal:
+npm start
 
-```bash
-cp .env.example .env
+# Ou com PM2 para rodar em segundo plano no Windows:
+npm install -g pm2
+pm2 start server.js --name "whatsapp-api"
+pm2 status
 ```
 
-4. Run the application:
+6. **Acessar a API e Painel**:
+- API / Health: `http://localhost:3000`
+- Swagger UI (Docs): `http://localhost:3000/api-docs` (se `ENABLE_SWAGGER_ENDPOINT=TRUE` no `.env`)
+- Iniciar uma sessão: `http://localhost:3000/session/start/sessao1`
+- Ler o QR Code gerado no terminal ou em: `http://localhost:3000/session/qr/sessao1/image`
 
-```bash
-npm run start
-```
+---
 
-5. Access the API at `http://localhost:3000`
+### Comandos úteis no dia a dia (Laragon / Windows)
+
+| Ação | Comando |
+| :--- | :--- |
+| **Iniciar em segundo plano** | `pm2 start server.js --name "whatsapp-api"` |
+| **Ver logs em tempo real** | `pm2 logs whatsapp-api` |
+| **Parar a API** | `pm2 stop whatsapp-api` |
+| **Reiniciar a API** | `pm2 restart whatsapp-api` |
+| **Ver status e consumo de RAM** | `pm2 list` ou `pm2 monit` |
 
 ## Testing
 
@@ -153,6 +179,59 @@ By setting the `DISABLED_CALLBACKS` environment variable you can specify what ev
 In order to validate a new WhatsApp Web instance you need to scan the QR code using your mobile phone. Official documentation can be found at (https://faq.whatsapp.com/1079327266110265/?cms_platform=android) page. The service itself delivers the QR code content as a webhook event or you can use the REST endpoints (`/session/qr/:sessionId` or `/session/qr/:sessionId/image` to get the QR code as a png image). 
 
 ## Deploy to Production
+
+### Option 1: VPS Linux (Ubuntu / Debian) sem Docker (com PM2)
+
+Caso queira rodar diretamente em uma VPS sem Docker (mais leve e performático):
+
+#### 1. Dependências do Sistema (Chromium / Puppeteer)
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y curl git chromium-browser \
+  gconf-service libasound2 libatk1.0-0 libc6 libcairo2 libcups2 \
+  libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 \
+  libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 \
+  libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 \
+  libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 \
+  libxtst6 ca-certificates fonts-liberation libappindicator1 libnss3 lsb-release xdg-utils
+```
+
+#### 2. Instalar Node.js (v20 LTS) e PM2
+```bash
+# Node.js 20 LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# PM2 (process manager)
+sudo npm install -g pm2
+```
+
+#### 3. Configurar Swap (Recomendado para 4+ instâncias em VPSs com 4GB RAM)
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+#### 4. Instalar dependências e Iniciar com PM2
+```bash
+# Na pasta do projeto:
+cp .env.example .env
+npm install --production
+
+# Iniciar com PM2
+pm2 start server.js --name "whatsapp-api"
+
+# Salvar lista e configurar início automático no boot
+pm2 save
+pm2 startup
+```
+
+---
+
+### Option 2: Docker / Docker Compose
 
 - Load the docker image in docker-compose, or your Kubernetes environment
 - Disable the `ENABLE_LOCAL_CALLBACK_EXAMPLE` environment variable

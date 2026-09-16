@@ -270,5 +270,247 @@
     "reminderEnabled": false,
     "reminderTimeoutMinutes": 5,
     "reminderMessage": "Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:"
+  },
+  "org_d5d0ffc1ddd9": {
+    "enabled": true,
+    "ignoreGroups": true,
+    "resetKeyword": "menu",
+    "sessionTimeoutMinutes": 30,
+    "handoverTimeoutMinutes": 60,
+    "typingDelaySeconds": 2,
+    "simulateTyping": true,
+    "invalidOptionMessage": "Opção inválida! Por favor, escolha uma das opções abaixo:",
+    "reminderEnabled": false,
+    "reminderTimeoutMinutes": 5,
+    "reminderMessage": "Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:",
+    "businessHours": {
+      "enabled": false,
+      "startTime": "08:00",
+      "endTime": "18:00",
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "outOfHoursMessage": "Olá {nome}! No momento nosso time está fora do horário de atendimento comercial (Segunda a Sexta, das 08h às 18h).\n\nSua mensagem foi recebida e responderemos logo no início do próximo expediente!"
+    },
+    "stats": {
+      "totalInteractions": 12,
+      "handoversTriggered": 1,
+      "stepHits": {
+        "start": 9,
+        "step_servicos": 1,
+        "step_orcamento": 1,
+        "step_portfolio": 1
+      }
+    },
+    "steps": [
+      {
+        "id": "start",
+        "title": "Boas-vindas Consultoria",
+        "isInitial": true,
+        "mediaUrl": "",
+        "message": "{saudacao}, {nome}! 💼 Bem-vindo(a) à nossa empresa de Soluções e Serviços.\n\nComo podemos impulsionar seus projetos hoje? Selecione uma opção:",
+        "options": [
+          {
+            "key": "1",
+            "label": "🎯 Conhecer Nossos Serviços",
+            "nextStepId": "step_servicos"
+          },
+          {
+            "key": "2",
+            "label": "📊 Solicitar Proposta / Orçamento",
+            "nextStepId": "step_orcamento"
+          },
+          {
+            "key": "3",
+            "label": "🏆 Portfólio & Casos de Sucesso",
+            "nextStepId": "step_portfolio"
+          },
+          {
+            "key": "4",
+            "label": "🤝 Falar Diretamente com um Consultor",
+            "nextStepId": "step_consultor"
+          }
+        ]
+      },
+      {
+        "id": "step_servicos",
+        "title": "Nossos Serviços",
+        "isInitial": false,
+        "message": "🎯 *Principais Soluções Oferecidas:*\n\n1. *Consultoria Especializada:* Diagnóstico completo e plano estratégico.\n2. *Desenvolvimento Sob Medida:* Softwares, automações e integrações.\n3. *Gestão e Aceleração:* Foco em resultados rápidos e escalabilidade.\n\nMais detalhes em: https://seusite.com/servicos",
+        "options": [
+          {
+            "key": "1",
+            "label": "Solicitar Orçamento",
+            "nextStepId": "step_orcamento"
+          },
+          {
+            "key": "0",
+            "label": "Voltar ao Menu Principal",
+            "nextStepId": "start"
+          }
+        ]
+      },
+      {
+        "id": "step_orcamento",
+        "title": "Solicitar Orçamento",
+        "isInitial": false,
+        "message": "📊 *Solicitação de Proposta:* \n\nPara montarmos uma proposta assertiva, conte-nos brevemente:\n- Qual é o objetivo do seu projeto?\n- Qual o prazo ideal de implementação?\n\nNossa equipe técnica entrará em contato para apresentar um orçamento sem compromisso!",
+        "isHandover": true,
+        "options": [
+          {
+            "key": "0",
+            "label": "Voltar ao Menu Principal",
+            "nextStepId": "start"
+          }
+        ]
+      },
+      {
+        "id": "step_portfolio",
+        "title": "Portfólio",
+        "isInitial": false,
+        "message": "🏆 *Casos de Sucesso e Projetos Entregues:*\n\nJá transformamos a operação de dezenas de empresas em todo o país!\n\nVeja nosso portfólio completo com avaliações de clientes:\n🌐 https://seusite.com/cases",
+        "options": [
+          {
+            "key": "1",
+            "label": "Falar com um Consultor",
+            "nextStepId": "step_consultor"
+          },
+          {
+            "key": "0",
+            "label": "Voltar ao Menu",
+            "nextStepId": "start"
+          }
+        ]
+      },
+      {
+        "id": "step_consultor",
+        "title": "Atendimento Consultivo",
+        "isInitial": false,
+        "isHandover": true,
+        "message": "🤝 Perfeito! Um de nossos consultores especialistas assumirá este atendimento agora.\n\nAguarde um instante que já vamos conversar.",
+        "options": [
+          {
+            "key": "0",
+            "label": "Voltar ao Menu",
+            "nextStepId": "start"
+          }
+        ]
+      }
+    ],
+    "logs": [
+      {
+        "time": "2026-09-16T05:57:39.176Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "3",
+        "stepId": "step_portfolio",
+        "stepTitle": "Portfólio",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:57:30.155Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "0",
+        "stepId": "start",
+        "stepTitle": "Boas-vindas Consultoria",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:57:10.287Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "1",
+        "stepId": "step_orcamento",
+        "stepTitle": "Solicitar Orçamento",
+        "isHandover": true
+      },
+      {
+        "time": "2026-09-16T05:57:02.600Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "1",
+        "stepId": "step_servicos",
+        "stepTitle": "Nossos Serviços",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:56:53.234Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "oi",
+        "stepId": "start",
+        "stepTitle": "Boas-vindas Consultoria",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:54:30.283Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "Oi",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:43:58.383Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "Ou",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:43:58.279Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "Ou",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:43:58.256Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "Ou",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:43:46.592Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "Ola",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:43:46.057Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "Ola",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      },
+      {
+        "time": "2026-09-16T05:43:46.020Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "Ola",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      }
+    ],
+    "updatedAt": "2026-09-16T05:56:22.164Z"
   }
 }

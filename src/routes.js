@@ -55,6 +55,8 @@ const typebotRouter = express.Router()
 typebotRouter.use(middleware.apikey)
 routes.use('/typebot', typebotRouter)
 
+typebotRouter.get('/templates/list', typebotController.getTemplates)
+typebotRouter.post('/:sessionId/apply-template', typebotController.applyTemplate)
 typebotRouter.get('/:sessionId', typebotController.getFlow)
 typebotRouter.post('/:sessionId', typebotController.saveFlow)
 typebotRouter.post('/:sessionId/reset-state', typebotController.resetStates)

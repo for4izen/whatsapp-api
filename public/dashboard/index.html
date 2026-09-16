@@ -41,14 +41,6 @@
         </svg>
         <span>Envio em Massa</span>
       </button>
-      <button class="nav-tab-btn" id="tabBtnTypebot" onclick="switchMainTab('typebot')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          <circle cx="9" cy="10" r="1"></circle>
-          <circle cx="15" cy="10" r="1"></circle>
-        </svg>
-        <span>Chatbot (Fluxos)</span>
-      </button>
       <button class="nav-tab-btn" id="tabBtnDocs" onclick="switchMainTab('docs')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -328,20 +320,57 @@
     </div>
 
     <!-- ==========================================
-         VIEW: CHATBOT FLUXOS (ESTILO TYPEBOT)
+         VIEW: GERENCIADOR E CHATBOT DA INSTÂNCIA (PÁGINA DEDICADA)
          ========================================== -->
-    <div id="viewTypebot" class="view-tab-content hidden">
-      <div class="section-toolbar">
-        <div>
-          <h2 class="section-title">Chatbot de Fluxos por Instância</h2>
-          <p class="section-desc">Crie árvores de atendimento automatizado com etapas, opções numéricas, follow-up e transferência humana.</p>
+    <div id="viewInstanceFlow" class="view-tab-content hidden">
+      <!-- Breadcrumb e Top Bar da Instância -->
+      <div class="instance-page-header">
+        <div class="instance-header-left">
+          <button class="btn btn-secondary btn-sm btn-back-instances" onclick="exitInstanceFlowPage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Voltar para Instâncias</span>
+          </button>
+          <div class="instance-title-group">
+            <h2 class="instance-page-title">
+              Instância: <span id="instancePageSessionName">...</span>
+            </h2>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span id="instancePageStatusBadge" class="badge badge-waiting">Verificando...</span>
+              <span id="instancePagePhoneBadge" class="badge badge-init">WhatsApp: -</span>
+            </div>
+          </div>
         </div>
-        <div class="toolbar-actions">
-          <button class="btn btn-secondary btn-sm" onclick="openTypebotSimulator()" title="Simulador de Conversa interativo para testar o bot no navegador sem precisar de celular">
-            <span>📱 Testar Fluxo (Simulador)</span>
+
+        <div class="instance-header-right">
+          <div class="bot-switch-control">
+            <span class="bot-switch-label">Status do Chatbot:</span>
+            <label class="switch-wrap">
+              <input type="checkbox" id="typebotEnabledToggle" onchange="onTypebotToggleChange()">
+              <span class="switch-slider"></span>
+            </label>
+            <span id="botActiveStatusText" style="font-size: 0.8rem; font-weight: 700; color: var(--wa-green);">Ativo</span>
+          </div>
+
+          <button class="btn btn-primary" onclick="saveCurrentTypebotFlow()">
+            <span>💾 Salvar Configurações</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de Ações Rápidas & Ferramentas -->
+      <div class="instance-tools-bar">
+        <div class="tools-bar-left">
+          <button class="btn btn-secondary btn-sm" onclick="openTemplatesModal()" title="Escolher um modelo pré-configurado por segmento de negócio">
+            <span>✨ Modelos Prontos por Segmento</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="openTypebotSimulator()" title="Testar o fluxo no simulador do navegador">
+            <span>📱 Testar no Simulador</span>
           </button>
           <button class="btn btn-secondary btn-sm" onclick="openCloneFlowModal()" title="Copiar árvore de atendimento de outra instância">
-            <span>📋 Clonar de Outra Instância</span>
+            <span>📋 Clonar de Outra</span>
           </button>
           <button class="btn btn-secondary btn-sm" onclick="exportTypebotBackup()" title="Baixar JSON deste fluxo">
             <span>📥 Exportar</span>
@@ -351,124 +380,160 @@
             <input type="file" id="importTypebotFileInput" accept=".json" style="display: none;" onchange="importTypebotBackup(event)">
           </label>
           <button class="btn btn-secondary btn-sm" onclick="resetTypebotStates()" title="Reinicia o histórico de conversas dos contatos no bot">
-            <span>🔄 Limpar Estados</span>
+            <span>🔄 Resetar Histórico</span>
           </button>
-          <button class="btn btn-secondary btn-sm" onclick="openAddTypebotStepModal()">
+        </div>
+        <div class="tools-bar-right">
+          <button class="btn btn-primary btn-sm" onclick="openAddTypebotStepModal()">
             <span>+ Nova Etapa</span>
           </button>
-          <button class="btn btn-primary btn-sm" onclick="saveCurrentTypebotFlow()">
-            <span>💾 Salvar Fluxo</span>
-          </button>
         </div>
       </div>
 
-      <!-- Configurações Gerais do Fluxo da Instância -->
-      <div class="card-box" style="margin-bottom: 1.5rem;">
-        <div class="box-header">
-          <div style="display: flex; align-items: center; gap: 1rem; width: 100%; justify-content: space-between; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <span class="box-title" style="margin-bottom: 0;">Instância Selecionada:</span>
-              <select id="typebotSessionSelect" class="form-select" style="min-width: 220px; font-weight: 600;" onchange="loadTypebotFlowForSelectedSession()">
-                <option value="">Carregando instâncias...</option>
-              </select>
+      <!-- Configurações Modulares da Instância -->
+      <div class="instance-config-grid">
+        <!-- Card 1: Horário de Atendimento e Ausência -->
+        <div class="card-box">
+          <div class="box-header">
+            <div>
+              <h3 class="box-title">⏰ Horário de Atendimento Comercial</h3>
+              <p class="box-desc">Defina os horários de expediente e envie resposta de ausência automática.</p>
+            </div>
+            <label class="switch-wrap">
+              <input type="checkbox" id="bhEnabledToggle" onchange="toggleBusinessHoursFields()">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div id="bhFieldsContainer" class="hidden">
+            <div class="form-row-2">
+              <div class="form-group">
+                <label for="bhStartTime">Horário de Início:</label>
+                <input type="time" id="bhStartTime" class="form-input" value="08:00">
+              </div>
+              <div class="form-group">
+                <label for="bhEndTime">Horário de Término:</label>
+                <input type="time" id="bhEndTime" class="form-input" value="18:00">
+              </div>
             </div>
 
-            <!-- Toggle Bot Ativo -->
-            <div style="display: flex; align-items: center; gap: 0.8rem; background: rgba(0,0,0,0.25); padding: 0.4rem 0.8rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-              <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">Status do Bot:</span>
-              <label class="switch-wrap">
-                <input type="checkbox" id="typebotEnabledToggle" onchange="onTypebotToggleChange()">
-                <span class="switch-slider"></span>
-              </label>
+            <div class="form-group">
+              <label>Dias de Funcionamento:</label>
+              <div class="days-checkbox-group">
+                <label class="day-chip"><input type="checkbox" name="bhDay" value="1" checked> Seg</label>
+                <label class="day-chip"><input type="checkbox" name="bhDay" value="2" checked> Ter</label>
+                <label class="day-chip"><input type="checkbox" name="bhDay" value="3" checked> Qua</label>
+                <label class="day-chip"><input type="checkbox" name="bhDay" value="4" checked> Qui</label>
+                <label class="day-chip"><input type="checkbox" name="bhDay" value="5" checked> Sex</label>
+                <label class="day-chip"><input type="checkbox" name="bhDay" value="6"> Sáb</label>
+                <label class="day-chip"><input type="checkbox" name="bhDay" value="0"> Dom</label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="bhOutOfHoursMessage">Mensagem Automática Fora do Horário:</label>
+              <textarea id="bhOutOfHoursMessage" class="form-textarea" rows="2" placeholder="Olá {nome}! No momento estamos fora do horário de atendimento..."></textarea>
+              <span class="form-hint">Variáveis disponíveis: <code>{nome}</code> e <code>{saudacao}</code>.</span>
             </div>
           </div>
         </div>
 
-
-        <div class="card-body">
-          <div class="form-row-3">
-            <div class="form-group">
-              <label for="typebotResetKeyword">Palavra-chave para Voltar ao Menu:</label>
-              <input type="text" id="typebotResetKeyword" class="form-input" placeholder="menu (ou '0')" value="menu">
-              <span class="form-hint">O cliente pode digitar '0' ou essa palavra a qualquer momento.</span>
-            </div>
-            <div class="form-group">
-              <label for="typebotTimeoutMinutes">Tempo de Inatividade da Conversa (min):</label>
-              <input type="number" id="typebotTimeoutMinutes" class="form-input" min="5" max="1440" value="30">
-              <span class="form-hint">Após esse tempo sem falar, a próxima mensagem reinicia no início.</span>
-            </div>
-            <div class="form-group">
-              <label for="typebotHandoverMinutes">Pausa para Atendente Humano (min):</label>
-              <input type="number" id="typebotHandoverMinutes" class="form-input" min="5" max="1440" value="60">
-              <span class="form-hint">Tempo em que o bot fica silenciado após transferir para humano.</span>
+        <!-- Card 2: Humanização, Anti-Ban & Regras de Atendimento -->
+        <div class="card-box">
+          <div class="box-header">
+            <div>
+              <h3 class="box-title">🛡️ Comportamento Humanizado & Anti-Ban</h3>
+              <p class="box-desc">Simulação de digitação real, intervalos naturais e bloqueios.</p>
             </div>
           </div>
 
-          <!-- Configurações Humanizadas e Anti-Ban (Digitando e Delay) -->
-          <div class="form-row-2" style="margin-top: 0.5rem; background: rgba(37, 211, 102, 0.04); padding: 0.9rem; border-radius: var(--radius-sm); border: 1px solid rgba(37, 211, 102, 0.2);">
-            <div class="form-group" style="margin-bottom: 0;">
-              <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer;">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; padding-top: 0.4rem;">
                 <input type="checkbox" id="typebotSimulateTypingCheckbox" checked>
-                <span style="font-weight: 700; color: #fff;">✍️ Simular "Digitando..." antes de responder (Humanizado)</span>
+                <span style="font-weight: 700; color: #fff;">✍️ Simular "Digitando..."</span>
               </label>
-              <span class="form-hint">Mostra o status de 'digitando...' no WhatsApp do cliente antes de disparar o texto.</span>
+              <span class="form-hint">Mostra 'digitando...' no celular do cliente antes de enviar.</span>
             </div>
-            <div class="form-group" style="margin-bottom: 0;">
-              <label for="typebotTypingDelaySeconds">Duração da Digitação / Delay Humano (segundos):</label>
+            <div class="form-group">
+              <label for="typebotTypingDelaySeconds">Delay Humano (segundos):</label>
               <input type="number" id="typebotTypingDelaySeconds" class="form-input" min="0" max="20" value="2">
-              <span class="form-hint">Intervalo natural de espera (Recomendado: 1 a 3 segundos).</span>
+              <span class="form-hint">Recomendado: 1 a 3 segundos.</span>
             </div>
           </div>
 
-          <div class="form-row-2" style="margin-top: 0.8rem;">
+          <div class="form-row-2">
             <div class="form-group">
-              <label for="typebotInvalidMessage">Mensagem de Opção Inválida:</label>
-              <input type="text" id="typebotInvalidMessage" class="form-input" value="Opção inválida! Por favor, escolha uma das opções abaixo:">
+              <label for="typebotResetKeyword">Palavra-chave Menu:</label>
+              <input type="text" id="typebotResetKeyword" class="form-input" placeholder="menu" value="menu">
+              <span class="form-hint">O cliente digita isso ou '0' para reiniciar o menu.</span>
             </div>
-            <div class="form-group" style="display: flex; align-items: center; padding-top: 1.6rem;">
+            <div class="form-group">
+              <label for="typebotHandoverMinutes">Pausa Atendente (min):</label>
+              <input type="number" id="typebotHandoverMinutes" class="form-input" min="5" max="1440" value="60">
+              <span class="form-hint">Tempo silenciado após passar para humano.</span>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="typebotTimeoutMinutes">Inatividade da Conversa (min):</label>
+              <input type="number" id="typebotTimeoutMinutes" class="form-input" min="5" max="1440" value="30">
+              <span class="form-hint">Tempo para a conversa voltar ao início.</span>
+            </div>
+            <div class="form-group" style="padding-top: 1.4rem;">
               <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                 <input type="checkbox" id="typebotIgnoreGroupsCheckbox" checked>
-                <span>Ignorar mensagens recebidas em Grupos de WhatsApp</span>
+                <span>Ignorar Grupos de WhatsApp</span>
               </label>
             </div>
           </div>
 
-          <!-- Lembrete Automático / Follow-up de Inatividade -->
-          <div style="background: rgba(255,255,255,0.02); border: 1px dashed var(--border-color); border-radius: var(--radius-sm); padding: 1rem; margin-top: 0.8rem;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
-              <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer;">
-                <input type="checkbox" id="typebotReminderEnabledCheckbox" onchange="toggleReminderFields()">
-                <span style="font-weight: 700; color: #fff;">⏰ Enviar Lembrete Automático se o usuário não responder</span>
-              </label>
-              <span class="form-hint" style="margin-top: 0;">Reengaja o cliente reenviando as opções da etapa</span>
-            </div>
-
-            <div id="typebotReminderFields" class="form-row-2 hidden">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label for="typebotReminderMinutes">Tempo de Espera para o Lembrete (minutos):</label>
-                <input type="number" id="typebotReminderMinutes" class="form-input" min="1" max="120" value="5">
-                <span class="form-hint">Ex: Se não responder em 5 min, o bot manda a mensagem abaixo.</span>
-              </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label for="typebotReminderMessage">Texto do Lembrete:</label>
-                <input type="text" id="typebotReminderMessage" class="form-input" value="Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:">
-                <span class="form-hint">As opções da etapa atual serão listadas automaticamente logo abaixo.</span>
-              </div>
-            </div>
+          <div class="form-group" style="margin-top: 0.5rem;">
+            <label for="typebotInvalidMessage">Mensagem de Opção Inválida:</label>
+            <input type="text" id="typebotInvalidMessage" class="form-input" value="Opção inválida! Por favor, escolha uma das opções abaixo:">
           </div>
         </div>
       </div>
 
+      <!-- Follow-up / Lembrete Automático -->
+      <div class="card-box" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer;">
+            <input type="checkbox" id="typebotReminderEnabledCheckbox" onchange="toggleReminderFields()">
+            <span style="font-weight: 700; color: #fff; font-size: 1rem;">⏰ Enviar Lembrete Automático se o cliente travar / não responder</span>
+          </label>
+          <span class="form-hint" style="margin-top: 0;">Reengaja o cliente reenviando as opções da etapa</span>
+        </div>
+
+        <div id="typebotReminderFields" class="form-row-2 hidden">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="typebotReminderMinutes">Tempo de Espera para o Lembrete (minutos):</label>
+            <input type="number" id="typebotReminderMinutes" class="form-input" min="1" max="120" value="5">
+            <span class="form-hint">Ex: Se não responder em 5 min, o bot manda o lembrete.</span>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="typebotReminderMessage">Texto do Lembrete:</label>
+            <input type="text" id="typebotReminderMessage" class="form-input" value="Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:">
+            <span class="form-hint">As opções da etapa atual são listadas automaticamente logo abaixo.</span>
+          </div>
+        </div>
+      </div>
 
       <!-- Etapas do Fluxo (Workflow Steps) -->
       <div style="margin-bottom: 2rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-color);">
-            🌳 Etapas do Atendimento (<span id="typebotStepsCount">0</span>)
-          </h3>
-          <span style="font-size: 0.8rem; color: var(--text-dim);">
-            A etapa com selo <strong>Menu Principal</strong> é disparada no primeiro "Oi" do contato.
-          </span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <h3 style="font-size: 1.2rem; font-weight: 800; color: var(--text-color);">
+              🌳 Árvore de Atendimento da Instância (<span id="typebotStepsCount">0</span> etapas)
+            </h3>
+            <span style="font-size: 0.85rem; color: var(--text-dim);">
+              A etapa com o selo <strong style="color: var(--wa-green);">Menu Principal</strong> é disparada no primeiro "Oi" do cliente.
+            </span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openAddTypebotStepModal()">
+            <span>+ Adicionar Nova Etapa</span>
+          </button>
         </div>
 
         <div id="typebotStepsContainer" class="typebot-steps-grid">
@@ -564,6 +629,8 @@
             <label for="stepMessageInput">Mensagem enviada pelo WhatsApp:</label>
             <div class="var-badge-group">
               <button type="button" class="btn-chip" onclick="insertStepTag('{nome}')">+ {nome}</button>
+              <button type="button" class="btn-chip" onclick="insertStepTag('{saudacao}')">+ {saudacao}</button>
+              <button type="button" class="btn-chip" onclick="insertStepTag('{numero}')">+ {numero}</button>
             </div>
           </div>
           <textarea id="stepMessageInput" class="form-textarea" rows="4" placeholder="Olá {nome}! Escolha uma das opções:" required></textarea>
@@ -809,6 +876,100 @@
           <button type="submit" class="btn btn-primary">Copiar Fluxo Completo</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: Escolher Modelo de Atendimento por Segmento -->
+  <div id="templateSelectorModal" class="modal-backdrop hidden">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">✨ Modelos Prontos por Segmento</h3>
+          <span class="modal-subtitle">Escolha um segmento para carregar uma árvore de atendimento profissional completa</span>
+        </div>
+        <button class="modal-close" onclick="closeModal('templateSelectorModal')">&times;</button>
+      </div>
+
+      <div class="templates-grid-modal">
+        <!-- Template 1: Restaurante -->
+        <div class="template-card" onclick="applySegmentTemplate('restaurante')">
+          <div class="template-card-icon">🍔</div>
+          <div class="template-card-info">
+            <h4 class="template-card-title">Restaurante / Hamburgueria / Delivery</h4>
+            <p class="template-card-desc">Cardápio digital com preços, fazer pedidos, taxas de entrega e atendente humano.</p>
+            <div class="template-tags">
+              <span class="template-tag">5 Etapas</span>
+              <span class="template-tag">Cardápio</span>
+              <span class="template-tag">Delivery</span>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm">Aplicar Modelo</button>
+        </div>
+
+        <!-- Template 2: E-commerce -->
+        <div class="template-card" onclick="applySegmentTemplate('ecommerce')">
+          <div class="template-card-icon">🛒</div>
+          <div class="template-card-info">
+            <h4 class="template-card-title">Loja Virtual / E-commerce / Vendas</h4>
+            <p class="template-card-desc">Catálogo de produtos, rastreio de pedidos, trocas/devoluções e vendedor humano.</p>
+            <div class="template-tags">
+              <span class="template-tag">4 Etapas</span>
+              <span class="template-tag">Rastreamento</span>
+              <span class="template-tag">Vendas</span>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm">Aplicar Modelo</button>
+        </div>
+
+        <!-- Template 3: Clínica / Saúde -->
+        <div class="template-card" onclick="applySegmentTemplate('clinica')">
+          <div class="template-card-icon">🏥</div>
+          <div class="template-card-info">
+            <h4 class="template-card-title">Clínica / Consultório / Barbearia</h4>
+            <p class="template-card-desc">Agendamento de horários, procedimentos, convênios/preços, localização e recepção.</p>
+            <div class="template-tags">
+              <span class="template-tag">5 Etapas</span>
+              <span class="template-tag">Agendamento</span>
+              <span class="template-tag">Saúde</span>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm">Aplicar Modelo</button>
+        </div>
+
+        <!-- Template 4: Prestação de Serviços -->
+        <div class="template-card" onclick="applySegmentTemplate('servicos')">
+          <div class="template-card-icon">💼</div>
+          <div class="template-card-info">
+            <h4 class="template-card-title">Prestação de Serviços / Consultoria</h4>
+            <p class="template-card-desc">Apresentação de serviços, solicitação de orçamentos, portfólio e consultor técnico.</p>
+            <div class="template-tags">
+              <span class="template-tag">4 Etapas</span>
+              <span class="template-tag">Orçamentos</span>
+              <span class="template-tag">Propostas</span>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm">Aplicar Modelo</button>
+        </div>
+
+        <!-- Template 5: Suporte Geral / SAC -->
+        <div class="template-card" onclick="applySegmentTemplate('geral')">
+          <div class="template-card-icon">🏢</div>
+          <div class="template-card-info">
+            <h4 class="template-card-title">Central de Atendimento Geral / SAC</h4>
+            <p class="template-card-desc">Planos e preços, dúvidas frequentes (FAQ), 2ª via financeira e atendente humano.</p>
+            <div class="template-tags">
+              <span class="template-tag">4 Etapas</span>
+              <span class="template-tag">Financeiro</span>
+              <span class="template-tag">Suporte</span>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm">Aplicar Modelo</button>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('templateSelectorModal')">Fechar</button>
+      </div>
     </div>
   </div>
 

@@ -57,38 +57,34 @@ function switchMainTab(tab) {
   activeTab = tab
   const btnSessions = document.getElementById('tabBtnSessions')
   const btnBroadcast = document.getElementById('tabBtnBroadcast')
-  const btnTypebot = document.getElementById('tabBtnTypebot')
   const btnDocs = document.getElementById('tabBtnDocs')
 
   const viewSessions = document.getElementById('viewSessions')
   const viewBroadcast = document.getElementById('viewBroadcast')
-  const viewTypebot = document.getElementById('viewTypebot')
+  const viewInstanceFlow = document.getElementById('viewInstanceFlow')
   const viewDocs = document.getElementById('viewDocs')
 
-  btnSessions.classList.remove('active')
-  btnBroadcast.classList.remove('active')
-  if (btnTypebot) btnTypebot.classList.remove('active')
+  if (btnSessions) btnSessions.classList.remove('active')
+  if (btnBroadcast) btnBroadcast.classList.remove('active')
   if (btnDocs) btnDocs.classList.remove('active')
 
-  viewSessions.classList.add('hidden')
-  viewBroadcast.classList.add('hidden')
-  if (viewTypebot) viewTypebot.classList.add('hidden')
+  if (viewSessions) viewSessions.classList.add('hidden')
+  if (viewBroadcast) viewBroadcast.classList.add('hidden')
+  if (viewInstanceFlow) viewInstanceFlow.classList.add('hidden')
   if (viewDocs) viewDocs.classList.add('hidden')
 
   if (tab === 'sessions') {
-    btnSessions.classList.add('active')
-    viewSessions.classList.remove('hidden')
+    if (btnSessions) btnSessions.classList.add('active')
+    if (viewSessions) viewSessions.classList.remove('hidden')
     loadSessions()
   } else if (tab === 'broadcast') {
-    btnBroadcast.classList.add('active')
-    viewBroadcast.classList.remove('hidden')
+    if (btnBroadcast) btnBroadcast.classList.add('active')
+    if (viewBroadcast) viewBroadcast.classList.remove('hidden')
     refreshBroadcastSelects()
     renderContactLists()
     fetchServerCampaigns()
-  } else if (tab === 'typebot') {
-    if (btnTypebot) btnTypebot.classList.add('active')
-    if (viewTypebot) viewTypebot.classList.remove('hidden')
-    initTypebotTab()
+  } else if (tab === 'instance-flow') {
+    if (viewInstanceFlow) viewInstanceFlow.classList.remove('hidden')
   } else if (tab === 'docs') {
     if (btnDocs) btnDocs.classList.add('active')
     if (viewDocs) viewDocs.classList.remove('hidden')
@@ -338,8 +334,11 @@ function renderGrid(sessions) {
       statusClass = 'status-connected'
       badgeHtml = `<span class="badge badge-connected"><span class="badge-dot"></span> Conectado</span>`
       actionButtons = `
+        <button class="btn btn-primary btn-sm" onclick="openInstanceFlowPage('${session.sessionId}')" title="Gerenciar Árvore de Atendimento e Chatbot desta instância">
+          <span>🤖 Gerenciar Chatbot</span>
+        </button>
         <button class="btn btn-secondary btn-sm" onclick="restartSession('${session.sessionId}')" title="Reiniciar Sessão">
-          <span>🔄 Reiniciar</span>
+          <span>🔄</span>
         </button>
         <button class="btn btn-danger-outline btn-sm" onclick="disconnectSession('${session.sessionId}')" title="Desconectar WhatsApp">
           <span>🔌 Desconectar</span>
@@ -352,6 +351,9 @@ function renderGrid(sessions) {
         <button class="btn btn-primary btn-sm" onclick="openQrModal('${session.sessionId}')">
           <span>📱 Escanear QR</span>
         </button>
+        <button class="btn btn-secondary btn-sm" onclick="openInstanceFlowPage('${session.sessionId}')" title="Configurar fluxo do Chatbot">
+          <span>🤖 Fluxo</span>
+        </button>
         <button class="btn btn-danger-outline btn-sm" onclick="disconnectSession('${session.sessionId}')">
           <span>Parar</span>
         </button>
@@ -362,6 +364,9 @@ function renderGrid(sessions) {
         <button class="btn btn-secondary btn-sm" onclick="openQrModal('${session.sessionId}')">
           <span>Ver QR Code</span>
         </button>
+        <button class="btn btn-secondary btn-sm" onclick="openInstanceFlowPage('${session.sessionId}')">
+          <span>🤖 Fluxo</span>
+        </button>
       `
     } else {
       badgeHtml = `<span class="badge badge-stopped"><span class="badge-dot"></span> Inativa</span>`
@@ -369,8 +374,11 @@ function renderGrid(sessions) {
         <button class="btn btn-primary btn-sm" onclick="startAndConnectSession('${session.sessionId}')">
           <span>⚡ Conectar</span>
         </button>
+        <button class="btn btn-secondary btn-sm" onclick="openInstanceFlowPage('${session.sessionId}')" title="Configurar fluxo antes de conectar">
+          <span>🤖 Fluxo</span>
+        </button>
         <button class="btn btn-danger-outline btn-sm" onclick="deleteSessionFolderData('${session.sessionId}')">
-          <span>🗑️ Excluir</span>
+          <span>🗑️</span>
         </button>
       `
     }
@@ -1385,59 +1393,53 @@ function escapeHtml(text) {
 }
 
 /* ==========================================================================
-   MODULE: TYPEBOT FLOW CONTROLLER
+   MODULE: INSTANCE FLOW & CHATBOT MANAGER (PAGE VIEW)
    ========================================================================== */
 
 let currentTypebotConfig = null
 let currentTypebotSessionId = ''
 
-async function initTypebotTab() {
-  populateTypebotSessionSelect()
-  if (currentTypebotSessionId) {
-    await loadTypebotFlowForSession(currentTypebotSessionId)
+async function openInstanceFlowPage(sessionId) {
+  currentTypebotSessionId = sessionId
+  switchMainTab('instance-flow')
+
+  const titleEl = document.getElementById('instancePageSessionName')
+  if (titleEl) titleEl.textContent = sessionId
+
+  // Atualizar badges da instância no topo
+  const session = cachedSessions.find(s => s.sessionId === sessionId)
+  const statusBadge = document.getElementById('instancePageStatusBadge')
+  const phoneBadge = document.getElementById('instancePagePhoneBadge')
+
+  if (statusBadge) {
+    if (session && session.isConnected) {
+      statusBadge.className = 'badge badge-connected'
+      statusBadge.innerHTML = '<span class="badge-dot"></span> Conectado'
+    } else {
+      statusBadge.className = 'badge badge-stopped'
+      statusBadge.innerHTML = '<span class="badge-dot"></span> Inativa'
+    }
   }
+
+  if (phoneBadge) {
+    const numberDisplay = session?.user?.wid ? session.user.wid.replace('@c.us', '') : 'Não conectado'
+    phoneBadge.textContent = `WhatsApp: ${numberDisplay}`
+  }
+
+  await loadTypebotFlowForSession(sessionId)
 }
 
-function populateTypebotSessionSelect() {
-  const select = document.getElementById('typebotSessionSelect')
-  if (!select) return
-
-  const prevVal = select.value || currentTypebotSessionId
-  if (cachedSessions.length === 0) {
-    select.innerHTML = '<option value="">Nenhuma instância detectada...</option>'
-    return
-  }
-
-  select.innerHTML = cachedSessions.map(s => {
-    const statusTag = s.isConnected ? '🟢 Conectado' : '⚪ Inativo'
-    return `<option value="${s.sessionId}">${s.sessionId} (${statusTag})</option>`
-  }).join('')
-
-  if (prevVal && cachedSessions.some(s => s.sessionId === prevVal)) {
-    select.value = prevVal
-    currentTypebotSessionId = prevVal
-  } else if (cachedSessions.length > 0) {
-    select.value = cachedSessions[0].sessionId
-    currentTypebotSessionId = cachedSessions[0].sessionId
-  }
-}
-
-async function loadTypebotFlowForSelectedSession() {
-  const select = document.getElementById('typebotSessionSelect')
-  if (!select) return
-  currentTypebotSessionId = select.value
-  if (currentTypebotSessionId) {
-    await loadTypebotFlowForSession(currentTypebotSessionId)
-  }
+function exitInstanceFlowPage() {
+  switchMainTab('sessions')
 }
 
 async function loadTypebotFlowForSession(sessionId) {
   try {
-    showToast(`Carregando fluxo da instância "${sessionId}"...`, 'info', 1200)
+    showToast(`Carregando fluxo da instância "${sessionId}"...`, 'info', 1000)
     const res = await apiRequest(`/typebot/${sessionId}`)
     const json = await res.json()
     if (!res.ok || !json.success) {
-      showToast('Erro ao carregar fluxo do typebot.', 'error')
+      showToast('Erro ao carregar configurações do chatbot.', 'error')
       return
     }
 
@@ -1451,7 +1453,12 @@ async function loadTypebotFlowForSession(sessionId) {
 function renderTypebotConfigToForm(flow) {
   if (!flow) return
 
-  document.getElementById('typebotEnabledToggle').checked = !!flow.enabled
+  const enabledToggle = document.getElementById('typebotEnabledToggle')
+  if (enabledToggle) {
+    enabledToggle.checked = !!flow.enabled
+    updateBotStatusLabel(flow.enabled)
+  }
+
   document.getElementById('typebotIgnoreGroupsCheckbox').checked = flow.ignoreGroups !== false
   document.getElementById('typebotResetKeyword').value = flow.resetKeyword || 'menu'
   document.getElementById('typebotTimeoutMinutes').value = flow.sessionTimeoutMinutes || 30
@@ -1468,6 +1475,24 @@ function renderTypebotConfigToForm(flow) {
     typingDelayInput.value = flow.typingDelaySeconds !== undefined ? flow.typingDelaySeconds : 2
   }
 
+  // Horário Comercial / Ausência
+  const bh = flow.businessHours || {}
+  const bhToggle = document.getElementById('bhEnabledToggle')
+  if (bhToggle) {
+    bhToggle.checked = !!bh.enabled
+    document.getElementById('bhStartTime').value = bh.startTime || '08:00'
+    document.getElementById('bhEndTime').value = bh.endTime || '18:00'
+    document.getElementById('bhOutOfHoursMessage').value = bh.outOfHoursMessage || 'Olá {nome}! No momento nosso time está fora do horário de atendimento comercial (Segunda a Sexta, das 08h às 18h).\n\nSua mensagem foi recebida e responderemos logo no início do próximo expediente!'
+
+    const dayCheckboxes = document.querySelectorAll('input[name="bhDay"]')
+    const activeDays = bh.days || [1, 2, 3, 4, 5]
+    dayCheckboxes.forEach(cb => {
+      cb.checked = activeDays.includes(parseInt(cb.value))
+    })
+
+    toggleBusinessHoursFields()
+  }
+
   // Configuração do Lembrete de Inatividade
   const reminderCheckbox = document.getElementById('typebotReminderEnabledCheckbox')
   if (reminderCheckbox) {
@@ -1481,6 +1506,18 @@ function renderTypebotConfigToForm(flow) {
   renderTypebotLogs(flow.logs || [])
 }
 
+function toggleBusinessHoursFields() {
+  const isChecked = document.getElementById('bhEnabledToggle').checked
+  const container = document.getElementById('bhFieldsContainer')
+  if (container) {
+    if (isChecked) {
+      container.classList.remove('hidden')
+    } else {
+      container.classList.add('hidden')
+    }
+  }
+}
+
 function toggleReminderFields() {
   const isChecked = document.getElementById('typebotReminderEnabledCheckbox').checked
   const fields = document.getElementById('typebotReminderFields')
@@ -1491,13 +1528,71 @@ function toggleReminderFields() {
   }
 }
 
+function updateBotStatusLabel(enabled) {
+  const label = document.getElementById('botActiveStatusText')
+  if (!label) return
+  if (enabled) {
+    label.textContent = 'Ativo'
+    label.style.color = 'var(--wa-green)'
+  } else {
+    label.textContent = 'Desativado'
+    label.style.color = 'var(--text-muted)'
+  }
+}
 
 function onTypebotToggleChange() {
   const isChecked = document.getElementById('typebotEnabledToggle').checked
+  updateBotStatusLabel(isChecked)
   if (isChecked) {
-    showToast(`Chatbot ativado para "${currentTypebotSessionId}"! Lembre-se de salvar.`, 'success', 2500)
+    showToast(`Chatbot ativado para "${currentTypebotSessionId}"! Salve para aplicar.`, 'success', 2500)
   } else {
     showToast(`Chatbot desativado para "${currentTypebotSessionId}".`, 'info', 2000)
+  }
+}
+
+/* ==========================================================================
+   MODULE: SEGMENT TEMPLATES
+   ========================================================================== */
+
+function openTemplatesModal() {
+  if (!currentTypebotSessionId) {
+    showToast('Nenhuma instância selecionada.', 'warning')
+    return
+  }
+  document.getElementById('templateSelectorModal').classList.remove('hidden')
+}
+
+async function applySegmentTemplate(templateKey) {
+  if (!currentTypebotSessionId) return
+
+  const confirmed = await showConfirmModal({
+    title: 'Aplicar Modelo Pré-configurado',
+    message: `Deseja substituir as etapas atuais da instância "${currentTypebotSessionId}" pelas etapas deste modelo pronto? Suas configurações de horário e anti-ban serão preservadas.`,
+    okText: 'Sim, Aplicar Modelo',
+    icon: '✨'
+  })
+
+  if (!confirmed) return
+
+  try {
+    showToast('Aplicando modelo de fluxo...', 'info')
+    const res = await apiRequest(`/typebot/${currentTypebotSessionId}/apply-template`, {
+      method: 'POST',
+      body: JSON.stringify({ templateKey })
+    })
+
+    const json = await res.json()
+    if (!res.ok || !json.success) {
+      showToast(json.message || 'Erro ao aplicar template.', 'error')
+      return
+    }
+
+    currentTypebotConfig = json.flow
+    renderTypebotConfigToForm(currentTypebotConfig)
+    closeModal('templateSelectorModal')
+    showToast(json.message || 'Modelo aplicado com sucesso!', 'success')
+  } catch (err) {
+    showToast('Falha ao comunicar com o servidor.', 'error')
   }
 }
 
@@ -1630,6 +1725,16 @@ async function saveCurrentTypebotFlow() {
   const reminderTimeoutMinutes = parseInt(document.getElementById('typebotReminderMinutes')?.value) || 5
   const reminderMessage = document.getElementById('typebotReminderMessage')?.value.trim() || 'Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:'
 
+  // Horário Comercial / Ausência
+  const bhEnabled = document.getElementById('bhEnabledToggle')?.checked || false
+  const bhStartTime = document.getElementById('bhStartTime')?.value || '08:00'
+  const bhEndTime = document.getElementById('bhEndTime')?.value || '18:00'
+  const bhOutOfHoursMessage = document.getElementById('bhOutOfHoursMessage')?.value.trim() || 'Olá {nome}! No momento nosso time está fora do horário de atendimento comercial (Segunda a Sexta, das 08h às 18h).\n\nSua mensagem foi recebida e responderemos logo no início do próximo expediente!'
+  const bhDays = []
+  document.querySelectorAll('input[name="bhDay"]:checked').forEach(cb => {
+    bhDays.push(parseInt(cb.value))
+  })
+
   const payload = {
     ...(currentTypebotConfig || {}),
     enabled,
@@ -1643,6 +1748,13 @@ async function saveCurrentTypebotFlow() {
     reminderEnabled,
     reminderTimeoutMinutes,
     reminderMessage,
+    businessHours: {
+      enabled: bhEnabled,
+      startTime: bhStartTime,
+      endTime: bhEndTime,
+      days: bhDays,
+      outOfHoursMessage: bhOutOfHoursMessage
+    },
     steps: currentTypebotConfig?.steps || []
   }
 

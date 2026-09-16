@@ -112,11 +112,58 @@ const cloneFlow = async (req, res) => {
   }
 }
 
+const getTemplates = async (req, res) => {
+  /*
+    #swagger.summary = 'Get built-in workflow templates by business segment'
+  */
+  try {
+    const templates = typebotManager.getTemplates()
+    return res.status(200).json({ success: true, templates })
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message })
+  }
+}
+
+const applyTemplate = async (req, res) => {
+  /*
+    #swagger.summary = 'Apply a business template to an instance flow'
+  */
+  try {
+    const { sessionId } = req.params
+    const { templateKey } = req.body
+    if (!sessionId || !templateKey) {
+      return res.status(400).json({ success: false, message: 'sessionId and templateKey are required' })
+    }
+
+    const templates = typebotManager.getTemplates()
+    const chosenTemplate = templates[templateKey]
+    if (!chosenTemplate) {
+      return res.status(404).json({ success: false, message: `Template "${templateKey}" não encontrado.` })
+    }
+
+    const current = typebotManager.getFlow(sessionId)
+    const updated = typebotManager.saveFlow(sessionId, {
+      ...current,
+      steps: chosenTemplate.steps
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: `Modelo "${chosenTemplate.name}" aplicado com sucesso!`,
+      flow: updated
+    })
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message })
+  }
+}
+
 module.exports = {
   getFlow,
   saveFlow,
   resetStates,
   simulate,
-  cloneFlow
+  cloneFlow,
+  getTemplates,
+  applyTemplate
 }
 

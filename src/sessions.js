@@ -280,17 +280,25 @@ const initializeEvents = (client, sessionId) => {
           console.error(`[Typebot] Erro ao processar mensagem na sessão ${sessionId}:`, botErr.message)
         }
 
-        if (message.hasMedia && message._data?.size < maxAttachmentSize) {
-
-
+        if (message.hasMedia && (!message._data?.size || message._data.size < maxAttachmentSize)) {
           // custom service event
           checkIfEventisEnabled('media').then(_ => {
-            message.downloadMedia().then(messageMedia => {
-              triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
-            }).catch(e => {
-              console.log('Download media error:', e.message)
-            })
-          })
+            if (typeof message.downloadMedia === 'function') {
+              message.downloadMedia()
+                .then(messageMedia => {
+                  if (messageMedia) {
+                    triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
+                  }
+                })
+                .catch(e => {
+                  // Mídias efêmeras, stickers antigos ou expirados não precisam poluir o terminal
+                  const errStr = e?.message || e?.toString() || ''
+                  if (errStr && errStr !== 'r') {
+                    console.warn(`[Sessions] Aviso ao baixar mídia (${sessionId}):`, errStr)
+                  }
+                })
+            }
+          }).catch(() => {})
         }
         if (setMessagesAsSeen) {
           try {

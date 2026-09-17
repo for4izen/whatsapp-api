@@ -275,7 +275,7 @@ const initializeEvents = (client, sessionId) => {
 
         // Processar fluxo de Typebot configurado para esta sessão
         try {
-          typebotManager.handleIncomingMessage(sessionId, message, client)
+          await typebotManager.handleIncomingMessage(sessionId, message, client)
         } catch (botErr) {
           console.error(`[Typebot] Erro ao processar mensagem na sessão ${sessionId}:`, botErr.message)
         }

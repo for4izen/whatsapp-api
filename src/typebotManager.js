@@ -527,6 +527,7 @@ class TypebotManager {
   }
 
   async handleIncomingMessage(sessionId, message, client) {
+    let stateKey = null
     try {
       const flow = this.getFlow(sessionId)
       if (!flow || !flow.enabled) return
@@ -555,7 +556,7 @@ class TypebotManager {
       const text = (message.body || '').trim()
       if (!text) return
 
-      const stateKey = `${sessionId}:${chatId}`
+      stateKey = `${sessionId}:${chatId}`
 
       // Trava de concorrência: se já está processando uma mensagem deste mesmo contato, descarta evento duplo
       if (this.chatLocks.has(stateKey)) {
@@ -718,7 +719,9 @@ class TypebotManager {
     } catch (error) {
       console.error(`[TypebotManager] Erro ao processar mensagem na sessão ${sessionId}:`, error.message)
     } finally {
-      this.chatLocks.delete(stateKey)
+      if (stateKey) {
+        this.chatLocks.delete(stateKey)
+      }
     }
   }
 

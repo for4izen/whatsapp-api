@@ -427,6 +427,9 @@ const initializeEvents = (client, sessionId) => {
 const deleteSessionFolder = async (sessionId) => {
   try {
     const targetDirPath = path.join(sessionFolderPath, `session-${sessionId}`)
+    if (!fs.existsSync(targetDirPath)) {
+      return
+    }
     const resolvedTargetDirPath = await fs.promises.realpath(targetDirPath)
     const resolvedSessionPath = await fs.promises.realpath(sessionFolderPath)
 
@@ -437,10 +440,24 @@ const deleteSessionFolder = async (sessionId) => {
     if (!resolvedTargetDirPath.startsWith(safeSessionPath)) {
       throw new Error('Invalid path: Directory traversal detected')
     }
-    await fs.promises.rm(resolvedTargetDirPath, { recursive: true, force: true })
+
+    // Windows retry logic: se o Puppeteer ainda estiver soltando locks de arquivos
+    let attempts = 0
+    while (attempts < 5) {
+      try {
+        await fs.promises.rm(resolvedTargetDirPath, { recursive: true, force: true, maxRetries: 3 })
+        break
+      } catch (rmErr) {
+        attempts++
+        if (attempts >= 5) {
+          console.warn(`[deleteSessionFolder] Aviso ao apagar pasta session-${sessionId}:`, rmErr.message)
+          break
+        }
+        await new Promise(r => setTimeout(r, 800))
+      }
+    }
   } catch (error) {
     console.log('Folder deletion error', error)
-    throw error
   }
 }
 
@@ -448,25 +465,30 @@ const deleteSessionFolder = async (sessionId) => {
 const reloadSession = async (sessionId) => {
   try {
     const client = sessions.get(sessionId)
-    if (!client) {
-      return
-    }
-    client.pupPage.removeAllListeners('close')
-    client.pupPage.removeAllListeners('error')
-    try {
-      const pages = await client.pupBrowser.pages()
-      await Promise.all(pages.map((page) => page.close()))
-      await Promise.race([
-        client.pupBrowser.close(),
-        new Promise(resolve => setTimeout(resolve, 5000))
-      ])
-    } catch (e) {
-      const childProcess = client.pupBrowser.process()
-      if (childProcess) {
-        childProcess.kill(9)
+    if (client) {
+      if (client.pupPage && typeof client.pupPage.removeAllListeners === 'function') {
+        client.pupPage.removeAllListeners('close')
+        client.pupPage.removeAllListeners('error')
       }
+      try {
+        if (client.pupBrowser) {
+          const pages = await client.pupBrowser.pages().catch(() => [])
+          await Promise.all(pages.map((page) => page.close().catch(() => {})))
+          await Promise.race([
+            client.pupBrowser.close().catch(() => {}),
+            new Promise(resolve => setTimeout(resolve, 5000))
+          ])
+        }
+      } catch (e) {
+        if (client.pupBrowser && typeof client.pupBrowser.process === 'function') {
+          const childProcess = client.pupBrowser.process()
+          if (childProcess) {
+            childProcess.kill(9)
+          }
+        }
+      }
+      sessions.delete(sessionId)
     }
-    sessions.delete(sessionId)
     setupSession(sessionId)
   } catch (error) {
     console.log(error)
@@ -477,46 +499,52 @@ const reloadSession = async (sessionId) => {
 const deleteSession = async (sessionId, validation) => {
   try {
     const client = sessions.get(sessionId)
-    if (!client) {
-      return
-    }
-    client.pupPage.removeAllListeners('close')
-    client.pupPage.removeAllListeners('error')
-    if (client.pupBrowser && typeof client.pupBrowser.isConnected !== 'function') {
-      client.pupBrowser.isConnected = function () {
-        return Boolean(this.connected)
+    if (client) {
+      if (client.pupPage && typeof client.pupPage.removeAllListeners === 'function') {
+        client.pupPage.removeAllListeners('close')
+        client.pupPage.removeAllListeners('error')
       }
+      if (client.pupBrowser && typeof client.pupBrowser.isConnected !== 'function') {
+        client.pupBrowser.isConnected = function () {
+          return Boolean(this.connected)
+        }
+      }
+
+      if (validation && validation.success) {
+        // Client Connected, request logout
+        console.log(`Logging out session ${sessionId}`)
+        try {
+          await client.logout()
+        } catch (err) {
+          console.log('client.logout error, falling back to destroy:', err.message)
+          await client.destroy().catch(() => {})
+        }
+      } else {
+        // Client not Connected, request destroy
+        console.log(`Destroying session ${sessionId}`)
+        try {
+          await client.destroy().catch(() => {})
+        } catch (_) {}
+      }
+
+      // Wait for client.pupBrowser to disconnect before deleting the folder
+      let maxDelay = 0
+      const checkConnected = () => {
+        if (!client.pupBrowser) return false
+        if (typeof client.pupBrowser.isConnected === 'function') return client.pupBrowser.isConnected()
+        return Boolean(client.pupBrowser.connected)
+      }
+      while (checkConnected() && (maxDelay < 10)) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        maxDelay++
+      }
+      sessions.delete(sessionId)
     }
 
-    if (validation.success) {
-      // Client Connected, request logout
-      console.log(`Logging out session ${sessionId}`)
-      try {
-        await client.logout()
-      } catch (err) {
-        console.log('client.logout error, falling back to destroy:', err.message)
-        await client.destroy().catch(() => {})
-      }
-    } else if (validation.message === 'session_not_connected') {
-      // Client not Connected, request destroy
-      console.log(`Destroying session ${sessionId}`)
-      await client.destroy().catch(() => {})
-    }
-    // Wait for client.pupBrowser to disconnect before deleting the folder
-    let maxDelay = 0
-    const checkConnected = () => {
-      if (!client.pupBrowser) return false
-      if (typeof client.pupBrowser.isConnected === 'function') return client.pupBrowser.isConnected()
-      return Boolean(client.pupBrowser.connected)
-    }
-    while (checkConnected() && (maxDelay < 10)) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      maxDelay++
-    }
+    // Always delete the session folder from disk even if it was not currently in memory
     await deleteSessionFolder(sessionId)
-    sessions.delete(sessionId)
   } catch (error) {
-    console.log(error)
+    console.log('deleteSession error:', error)
     throw error
   }
 }

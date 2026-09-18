@@ -2,25 +2,39 @@ const { MessageMedia } = require('whatsapp-web.js')
 const { sessions } = require('../sessions')
 const { sendErrorResponse } = require('../utils')
 
+const formatContactId = (id) => {
+  if (!id) return id
+  const cleaned = String(id).replace(/[^0-9]/g, '')
+  return cleaned.endsWith('@c.us') ? cleaned : `${cleaned}@c.us`
+}
+
+const normalizeGroupId = (chatId) => {
+  if (!chatId) return chatId
+  const trimmed = String(chatId).trim()
+  if (trimmed.includes('@')) return trimmed
+  return `${trimmed}@g.us`
+}
+
 /**
  * Adds participants to a group chat.
  * @async
  * @function
  * @param {Object} req - The request object containing the chatId and contactIds in the body.
  * @param {string} req.body.chatId - The ID of the group chat.
- * @param {Array<string>} req.body.contactIds - An array of contact IDs to be added to the group.
+ * @param {Array<string>|string} req.body.contactIds - An array or single contact ID to be added to the group.
  * @param {Object} res - The response object.
- * @returns {Object} Returns a JSON object containing a success flag and the updated participants list.
+ * @returns {Object} Returns a JSON object containing a success flag, result details and the updated participants list.
  * @throws {Error} Throws an error if the chat is not a group chat.
 */
 const addParticipants = async (req, res) => {
   try {
     const { chatId, contactIds } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
-    await chat.addParticipants(contactIds)
-    res.json({ success: true, participants: chat.participants })
+    const targets = Array.isArray(contactIds) ? contactIds.map(formatContactId) : [formatContactId(contactIds)]
+    const result = await chat.addParticipants(targets)
+    res.json({ success: true, result, participants: chat.participants })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
   }
@@ -40,10 +54,11 @@ const removeParticipants = async (req, res) => {
   try {
     const { chatId, contactIds } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
-    await chat.removeParticipants(contactIds)
-    res.json({ success: true, participants: chat.participants })
+    const targets = Array.isArray(contactIds) ? contactIds.map(formatContactId) : [formatContactId(contactIds)]
+    const result = await chat.removeParticipants(targets)
+    res.json({ success: true, result, participants: chat.participants })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
   }
@@ -63,10 +78,11 @@ const promoteParticipants = async (req, res) => {
   try {
     const { chatId, contactIds } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
-    await chat.promoteParticipants(contactIds)
-    res.json({ success: true, participants: chat.participants })
+    const targets = Array.isArray(contactIds) ? contactIds.map(formatContactId) : [formatContactId(contactIds)]
+    const result = await chat.promoteParticipants(targets)
+    res.json({ success: true, result, participants: chat.participants })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
   }
@@ -86,10 +102,11 @@ const demoteParticipants = async (req, res) => {
   try {
     const { chatId, contactIds } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
-    await chat.demoteParticipants(contactIds)
-    res.json({ success: true, participants: chat.participants })
+    const targets = Array.isArray(contactIds) ? contactIds.map(formatContactId) : [formatContactId(contactIds)]
+    const result = await chat.demoteParticipants(targets)
+    res.json({ success: true, result, participants: chat.participants })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
   }
@@ -109,7 +126,7 @@ const getInviteCode = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const inviteCode = await chat.getInviteCode()
     res.json({ success: true, inviteCode })
@@ -132,7 +149,7 @@ const setSubject = async (req, res) => {
   try {
     const { chatId, subject } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const success = await chat.setSubject(subject)
     res.json({ success, chat })
@@ -155,7 +172,7 @@ const setDescription = async (req, res) => {
   try {
     const { chatId, description } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const success = await chat.setDescription(description)
     res.json({ success, chat })
@@ -178,7 +195,7 @@ const leave = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const outcome = await chat.leave()
     res.json({ success: true, outcome })
@@ -203,7 +220,7 @@ const getClassInfo = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     res.json({ success: true, chat })
   } catch (error) {
@@ -227,7 +244,7 @@ const revokeInvite = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const newInviteCode = await chat.revokeInvite()
     res.json({ success: true, newInviteCode })
@@ -254,7 +271,7 @@ const setInfoAdminsOnly = async (req, res) => {
   try {
     const { chatId, adminsOnly } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const result = await chat.setInfoAdminsOnly(adminsOnly)
     res.json({ success: true, result })
@@ -281,7 +298,7 @@ const setMessagesAdminsOnly = async (req, res) => {
   try {
     const { chatId, adminsOnly } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const result = await chat.setMessagesAdminsOnly(adminsOnly)
     res.json({ success: true, result })
@@ -306,7 +323,7 @@ const setPicture = async (req, res) => {
     const { pictureMimetype, pictureData, chatId } = req.body
     const client = sessions.get(req.params.sessionId)
     const media = new MessageMedia(pictureMimetype, pictureData)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const result = await chat.setPicture(media)
     res.json({ success: true, result })
@@ -328,9 +345,79 @@ const deletePicture = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
     if (!chat.isGroup) { throw new Error('The chat is not a group') }
     const result = await chat.deletePicture()
+    res.json({ success: true, result })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * Gets pending membership requests for a group chat.
+ * @async
+ * @function getMembershipRequests
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ * @param {string} req.params.sessionId - The ID of the session.
+ * @param {string} req.body.chatId - ID of the group chat.
+ */
+const getMembershipRequests = async (req, res) => {
+  try {
+    const { chatId } = req.body
+    const client = sessions.get(req.params.sessionId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
+    if (!chat.isGroup) { throw new Error('The chat is not a group') }
+    const requests = await chat.getGroupMembershipRequests()
+    res.json({ success: true, requests })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * Approves pending membership requests for a group chat.
+ * @async
+ * @function approveMembershipRequests
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ * @param {string} req.params.sessionId - The ID of the session.
+ * @param {string} req.body.chatId - ID of the group chat.
+ * @param {Array<string>} [req.body.requesterIds] - Optional array of requester IDs to approve. If omitted, approves all.
+ */
+const approveMembershipRequests = async (req, res) => {
+  try {
+    const { chatId, requesterIds } = req.body
+    const client = sessions.get(req.params.sessionId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
+    if (!chat.isGroup) { throw new Error('The chat is not a group') }
+    const options = requesterIds ? { requesterIds: Array.isArray(requesterIds) ? requesterIds.map(formatContactId) : [formatContactId(requesterIds)] } : {}
+    const result = await chat.approveGroupMembershipRequests(options)
+    res.json({ success: true, result })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * Rejects pending membership requests for a group chat.
+ * @async
+ * @function rejectMembershipRequests
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ * @param {string} req.params.sessionId - The ID of the session.
+ * @param {string} req.body.chatId - ID of the group chat.
+ * @param {Array<string>} [req.body.requesterIds] - Optional array of requester IDs to reject. If omitted, rejects all.
+ */
+const rejectMembershipRequests = async (req, res) => {
+  try {
+    const { chatId, requesterIds } = req.body
+    const client = sessions.get(req.params.sessionId)
+    const chat = await client.getChatById(normalizeGroupId(chatId))
+    if (!chat.isGroup) { throw new Error('The chat is not a group') }
+    const options = requesterIds ? { requesterIds: Array.isArray(requesterIds) ? requesterIds.map(formatContactId) : [formatContactId(requesterIds)] } : {}
+    const result = await chat.rejectGroupMembershipRequests(options)
     res.json({ success: true, result })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
@@ -351,5 +438,8 @@ module.exports = {
   setMessagesAdminsOnly,
   setSubject,
   setPicture,
-  deletePicture
+  deletePicture,
+  getMembershipRequests,
+  approveMembershipRequests,
+  rejectMembershipRequests
 }

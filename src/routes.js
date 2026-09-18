@@ -113,7 +113,7 @@ sessionRouter.get('/terminateAll', sessionController.terminateAllSessions)
 
 const clientRouter = express.Router()
 clientRouter.use(middleware.apikey)
-sessionRouter.use(middleware.clientSwagger)
+clientRouter.use(middleware.clientSwagger)
 routes.use('/client', clientRouter)
 
 clientRouter.get('/getClassInfo/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], clientController.getClassInfo)
@@ -151,6 +151,7 @@ clientRouter.post('/unarchiveChat/:sessionId', [middleware.sessionNameValidation
 clientRouter.post('/unmuteChat/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], clientController.unmuteChat)
 clientRouter.post('/unpinChat/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], clientController.unpinChat)
 clientRouter.get('/getWWebVersion/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], clientController.getWWebVersion)
+clientRouter.get('/getChannels/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], clientController.getChannels)
 
 /**
  * ================
@@ -159,7 +160,7 @@ clientRouter.get('/getWWebVersion/:sessionId', [middleware.sessionNameValidation
  */
 const chatRouter = express.Router()
 chatRouter.use(middleware.apikey)
-sessionRouter.use(middleware.chatSwagger)
+chatRouter.use(middleware.chatSwagger)
 routes.use('/chat', chatRouter)
 
 chatRouter.post('/getClassInfo/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], chatController.getClassInfo)
@@ -170,6 +171,7 @@ chatRouter.post('/fetchMessages/:sessionId', [middleware.sessionNameValidation, 
 chatRouter.post('/getContact/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], chatController.getContact)
 chatRouter.post('/sendStateRecording/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], chatController.sendStateRecording)
 chatRouter.post('/sendStateTyping/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], chatController.sendStateTyping)
+chatRouter.post('/getPinnedMessages/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], chatController.getPinnedMessages)
 
 /**
  * ================
@@ -178,7 +180,7 @@ chatRouter.post('/sendStateTyping/:sessionId', [middleware.sessionNameValidation
  */
 const groupChatRouter = express.Router()
 groupChatRouter.use(middleware.apikey)
-sessionRouter.use(middleware.groupChatSwagger)
+groupChatRouter.use(middleware.groupChatSwagger)
 routes.use('/groupChat', groupChatRouter)
 
 groupChatRouter.post('/getClassInfo/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], groupChatController.getClassInfo)
@@ -195,6 +197,9 @@ groupChatRouter.post('/setMessagesAdminsOnly/:sessionId', [middleware.sessionNam
 groupChatRouter.post('/setSubject/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], groupChatController.setSubject)
 groupChatRouter.post('/setPicture/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], groupChatController.setPicture)
 groupChatRouter.post('/deletePicture/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], groupChatController.deletePicture)
+groupChatRouter.post('/getMembershipRequests/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], groupChatController.getMembershipRequests)
+groupChatRouter.post('/approveMembershipRequests/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], groupChatController.approveMembershipRequests)
+groupChatRouter.post('/rejectMembershipRequests/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], groupChatController.rejectMembershipRequests)
 
 /**
  * ================
@@ -203,7 +208,7 @@ groupChatRouter.post('/deletePicture/:sessionId', [middleware.sessionNameValidat
  */
 const messageRouter = express.Router()
 messageRouter.use(middleware.apikey)
-sessionRouter.use(middleware.messageSwagger)
+messageRouter.use(middleware.messageSwagger)
 routes.use('/message', messageRouter)
 
 messageRouter.post('/getClassInfo/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.getClassInfo)
@@ -219,15 +224,18 @@ messageRouter.post('/react/:sessionId', [middleware.sessionNameValidation, middl
 messageRouter.post('/reply/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.reply)
 messageRouter.post('/star/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.star)
 messageRouter.post('/unstar/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.unstar)
+messageRouter.post('/edit/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.edit)
+messageRouter.post('/pin/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.pin)
+messageRouter.post('/unpin/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.unpin)
 
 /**
  * ================
- * MESSAGE ENDPOINTS
+ * CONTACT ENDPOINTS
  * ================
  */
 const contactRouter = express.Router()
 contactRouter.use(middleware.apikey)
-sessionRouter.use(middleware.contactSwagger)
+contactRouter.use(middleware.contactSwagger)
 routes.use('/contact', contactRouter)
 
 contactRouter.post('/getClassInfo/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], contactController.getClassInfo)

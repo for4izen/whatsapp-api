@@ -1,0 +1,294 @@
+{
+  "enabled": true,
+  "ignoreGroups": true,
+  "resetKeyword": "menu",
+  "sessionTimeoutMinutes": 30,
+  "handoverTimeoutMinutes": 60,
+  "invalidOptionMessage": "Opção inválida! Por favor, escolha uma das opções abaixo:",
+  "steps": [
+    {
+      "id": "start",
+      "title": "Menu Principal",
+      "isInitial": true,
+      "message": "Olá {nome}! 👋 Bem-vindo(a) ao nosso atendimento automatizado.\n\nComo posso ajudar você hoje? Escolha uma opção:",
+      "options": [
+        {
+          "key": "1",
+          "label": "Conhecer Planos e Preços",
+          "nextStepId": "step_precos"
+        },
+        {
+          "key": "2",
+          "label": "Suporte e Dúvidas Frequentes",
+          "nextStepId": "step_suporte"
+        },
+        {
+          "key": "3",
+          "label": "Falar com Atendente Humano",
+          "nextStepId": "step_atendente"
+        },
+        {
+          "key": "4",
+          "label": "Teste",
+          "nextStepId": "step_elite"
+        }
+      ],
+      "isHandover": false
+    },
+    {
+      "id": "step_precos",
+      "title": "Planos e Preços",
+      "isInitial": false,
+      "message": "🚀 *Nossos planos disponíveis:*\n\n1. Básico: R$ 49/mês\n2. Profissional: R$ 99/mês\n3. Enterprise: Personalizado\n\nAcesse nosso catálogo online: https://seusite.com/precos",
+      "options": [
+        {
+          "key": "1",
+          "label": "Falar com um consultor de vendas",
+          "nextStepId": "step_atendente"
+        },
+        {
+          "key": "0",
+          "label": "Voltar ao Menu Principal",
+          "nextStepId": "start"
+        }
+      ]
+    },
+    {
+      "id": "step_suporte",
+      "title": "Suporte Técnico",
+      "isInitial": false,
+      "message": "🛠️ *Central de Suporte*\n\nNossa base de conhecimento e tutoriais estão disponíveis em: https://ajuda.seusite.com\n\nCaso seu problema não seja resolvido, selecione uma opção:",
+      "options": [
+        {
+          "key": "1",
+          "label": "Abrir chamado com a equipe técnica",
+          "nextStepId": "step_atendente"
+        },
+        {
+          "key": "0",
+          "label": "Voltar ao Menu Principal",
+          "nextStepId": "start"
+        }
+      ]
+    },
+    {
+      "id": "step_atendente",
+      "title": "Atendimento Humano",
+      "isInitial": false,
+      "message": "👤 Um de nossos atendentes humanos responderá sua mensagem em breve!\n\nPor favor, aguarde alguns instantes.",
+      "isHandover": true,
+      "options": [
+        {
+          "key": "0",
+          "label": "Cancelar e voltar ao menu",
+          "nextStepId": "start"
+        }
+      ]
+    },
+    {
+      "id": "step_elite",
+      "title": "TRewerwe",
+      "message": "Teste",
+      "isInitial": false,
+      "isHandover": false,
+      "options": [
+        {
+          "key": "1",
+          "label": "Opção 1",
+          "nextStepId": "start"
+        }
+      ]
+    }
+  ],
+  "logs": [
+    {
+      "time": "2026-09-18T03:23:25.723Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "oi",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:20:48.204Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "dwoqmodqwm",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:20:46.606Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "omq,dwoqwm",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:20:44.157Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "ola",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:20:40.837Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "0",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:20:36.109Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "olá",
+      "stepId": "step_elite",
+      "stepTitle": "TRewerwe",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:14:27.347Z",
+      "from": "161079007162416@lid",
+      "contactName": "Arthur",
+      "input": "1",
+      "stepId": "step_precos",
+      "stepTitle": "Planos e Preços",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:14:23.205Z",
+      "from": "161079007162416@lid",
+      "contactName": "Arthur",
+      "input": "0",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:13:56.072Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "4",
+      "stepId": "step_elite",
+      "stepTitle": "TRewerwe",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:13:50.581Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "dqwdqw",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:11:14.449Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "1",
+      "stepId": "step_precos",
+      "stepTitle": "Planos e Preços",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:11:10.084Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "0",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:11:06.559Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "1",
+      "stepId": "step_atendente",
+      "stepTitle": "Atendimento Humano",
+      "isHandover": true
+    },
+    {
+      "time": "2026-09-11T20:11:04.127Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "2",
+      "stepId": "step_suporte",
+      "stepTitle": "Suporte Técnico",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:10:59.157Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "0",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:10:54.940Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "3",
+      "stepId": "step_atendente",
+      "stepTitle": "Atendimento Humano",
+      "isHandover": true
+    },
+    {
+      "time": "2026-09-11T20:10:52.530Z",
+      "from": "161079007162416@lid",
+      "contactName": "Arthur",
+      "input": "oi",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    },
+    {
+      "time": "2026-09-11T20:10:16.575Z",
+      "from": "166499306221616@lid",
+      "contactName": "Yghor Lopes ⚡",
+      "input": "fqwe",
+      "stepId": "start",
+      "stepTitle": "Menu Principal",
+      "isHandover": false
+    }
+  ],
+  "updatedAt": "2026-09-18T03:23:09.782Z",
+  "stats": {
+    "totalInteractions": 4,
+    "handoversTriggered": 0,
+    "stepHits": {
+      "start": 2,
+      "step_precos": 2
+    }
+  },
+  "simulateTyping": true,
+  "typingDelaySeconds": 2,
+  "reminderEnabled": false,
+  "reminderTimeoutMinutes": 5,
+  "reminderMessage": "Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:",
+  "businessHours": {
+    "enabled": false,
+    "startTime": "08:00",
+    "endTime": "18:00",
+    "days": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "outOfHoursMessage": "Olá {nome}! No momento nosso time está fora do horário de atendimento comercial (Segunda a Sexta, das 08h às 18h).\n\nSua mensagem foi recebida e responderemos logo no início do próximo expediente!"
+  }
+}

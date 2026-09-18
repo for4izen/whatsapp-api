@@ -67,8 +67,15 @@ const sendMessage = async (req, res) => {
   */
 
   try {
-    const { chatId, content, contentType, options } = req.body
+    const { chatId: rawChatId, content, contentType, options } = req.body
     const client = sessions.get(req.params.sessionId)
+
+    // Normalize chatId: auto append @c.us if only digits
+    let chatId = rawChatId ? String(rawChatId).trim() : ''
+    if (chatId && !chatId.includes('@')) {
+      const cleaned = chatId.replace(/[^0-9]/g, '')
+      chatId = `${cleaned}@c.us`
+    }
 
     let messageOut
     switch (contentType) {
@@ -107,7 +114,9 @@ const sendMessage = async (req, res) => {
         break
       }
       case 'Contact': {
-        const contactId = content.contactId.endsWith('@c.us') ? content.contactId : `${content.contactId}@c.us`
+        const rawContact = typeof content === 'string' ? content : (content.contactId || '')
+        const cleanedContact = String(rawContact).replace(/[^0-9]/g, '')
+        const contactId = cleanedContact.endsWith('@c.us') ? cleanedContact : `${cleanedContact}@c.us`
         const contact = await client.getContactById(contactId)
         messageOut = await client.sendMessage(chatId, contact, options)
         break
@@ -1341,6 +1350,23 @@ const setProfilePicture = async (req, res) => {
   }
 }
 
+/**
+ * Retrieves all followed WhatsApp channels/newsletters
+ * @async
+ * @function getChannels
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getChannels = async (req, res) => {
+  try {
+    const client = sessions.get(req.params.sessionId)
+    const channels = await client.getChannels()
+    res.json({ success: true, channels })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
 module.exports = {
   getClassInfo,
   acceptInvite,
@@ -1376,5 +1402,6 @@ module.exports = {
   unarchiveChat,
   unmuteChat,
   unpinChat,
-  getWWebVersion
+  getWWebVersion,
+  getChannels
 }

@@ -2,7 +2,11 @@ const fs = require('fs')
 const path = require('path')
 const { MessageMedia } = require('whatsapp-web.js')
 
-const FLOWS_FILE = path.join(__dirname, '../data/typebot_flows.json')
+const DATA_DIR = path.join(__dirname, '../data')
+const FLOWS_DIR = path.join(DATA_DIR, 'flows')
+const LOGS_DIR = path.join(DATA_DIR, 'logs')
+const USER_STATES_FILE = path.join(DATA_DIR, 'user_states.json')
+const LEGACY_FLOWS_FILE = path.join(DATA_DIR, 'typebot_flows.json')
 
 class TypebotManager {
   constructor() {
@@ -11,35 +15,172 @@ class TypebotManager {
     this.reminderTimers = {} // { `${sessionId}:${chatId}`: timeoutHandle }
     this.processedMessageIds = new Set() // Previne processar a mesma mensagem duas vezes
     this.chatLocks = new Set() // Previne concorrência se chegarem mensagens simultâneas do mesmo chat
+    this.stateSaveTimer = null
     this.initStorage()
   }
 
   initStorage() {
-    const dataDir = path.join(__dirname, '../data')
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true })
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+    if (!fs.existsSync(FLOWS_DIR)) {
+      fs.mkdirSync(FLOWS_DIR, { recursive: true })
+    }
+    if (!fs.existsSync(LOGS_DIR)) {
+      fs.mkdirSync(LOGS_DIR, { recursive: true })
     }
 
-    if (fs.existsSync(FLOWS_FILE)) {
+    // Carregar estados de usuário persistidos
+    if (fs.existsSync(USER_STATES_FILE)) {
       try {
-        const raw = fs.readFileSync(FLOWS_FILE, 'utf8')
-        this.flows = JSON.parse(raw)
+        this.userStates = JSON.parse(fs.readFileSync(USER_STATES_FILE, 'utf8'))
       } catch (err) {
-        console.error('[TypebotManager] Erro ao carregar fluxos:', err.message)
-        this.flows = {}
+        console.error('[TypebotManager] Erro ao carregar user_states:', err.message)
+        this.userStates = {}
       }
-    } else {
-      this.flows = {}
-      this.saveFlows()
+    }
+
+    // 1. Carregar fluxos modulares individuais por sessão
+    try {
+      const files = fs.readdirSync(FLOWS_DIR).filter(f => f.endsWith('.json'))
+      for (const file of files) {
+        const sessionId = path.basename(file, '.json')
+        const filePath = path.join(FLOWS_DIR, file)
+        try {
+          this.flows[sessionId] = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+        } catch (err) {
+          console.error(`[TypebotManager] Erro ao ler fluxo ${file}:`, err.message)
+        }
+      }
+    } catch (err) {
+      console.error('[TypebotManager] Erro ao ler pasta de fluxos:', err.message)
+    }
+
+    // 2. Fallback de migração automática do arquivo monolítico legado
+    if (fs.existsSync(LEGACY_FLOWS_FILE)) {
+      try {
+        const raw = fs.readFileSync(LEGACY_FLOWS_FILE, 'utf8')
+        const legacyFlows = JSON.parse(raw)
+        for (const [sessionId, flow] of Object.entries(legacyFlows)) {
+          if (!this.flows[sessionId]) {
+            this.flows[sessionId] = flow
+            this.saveSessionFlow(sessionId)
+          }
+        }
+      } catch (err) {
+        console.error('[TypebotManager] Erro ao ler arquivo legado:', err.message)
+      }
+    }
+  }
+
+  saveSessionFlow(sessionId) {
+    if (!sessionId || !this.flows[sessionId]) return
+    try {
+      const sessionFile = path.join(FLOWS_DIR, `${sessionId}.json`)
+      fs.writeFileSync(sessionFile, JSON.stringify(this.flows[sessionId], null, 2), 'utf8')
+
+      // Sincroniza espelho legado para manter retrocompatibilidade se algum script externo consumir
+      try {
+        fs.writeFileSync(LEGACY_FLOWS_FILE, JSON.stringify(this.flows, null, 2), 'utf8')
+      } catch (_) {}
+    } catch (err) {
+      console.error(`[TypebotManager] Erro ao salvar fluxo da sessão ${sessionId}:`, err.message)
     }
   }
 
   saveFlows() {
-    try {
-      fs.writeFileSync(FLOWS_FILE, JSON.stringify(this.flows, null, 2), 'utf8')
-    } catch (err) {
-      console.error('[TypebotManager] Erro ao salvar fluxos:', err.message)
+    for (const sessionId of Object.keys(this.flows)) {
+      this.saveSessionFlow(sessionId)
     }
+  }
+
+  saveUserStates() {
+    if (this.stateSaveTimer) {
+      clearTimeout(this.stateSaveTimer)
+    }
+    // Debounce de 300ms para evitar escrita excessiva em disco durante rajadas de mensagens
+    this.stateSaveTimer = setTimeout(() => {
+      try {
+        fs.writeFileSync(USER_STATES_FILE, JSON.stringify(this.userStates, null, 2), 'utf8')
+      } catch (err) {
+        console.error('[TypebotManager] Erro ao persistir user_states:', err.message)
+      }
+    }, 300)
+  }
+
+  /**
+   * Encontra a opção escolhida com tolerância a digitações humanas comuns
+   * Ex: '1', '1.', '1 - Opção', 'Opção 1', 'Quero a 1', etc.
+   */
+  matchOption(options, rawText) {
+    if (!options || !Array.isArray(options) || options.length === 0) return null
+    const text = (rawText || '').trim().toLowerCase()
+    if (!text) return null
+
+    // 1. Correspondência exata da tecla ou do label
+    const exactMatch = options.find(opt => {
+      const key = (opt.key || '').trim().toLowerCase()
+      const label = (opt.label || '').trim().toLowerCase()
+      return key === text || label === text
+    })
+    if (exactMatch) return exactMatch
+
+    // 2. Extrai o primeiro número isolado no início ou fim do texto (ex: "1.", "1 -", "1 por favor", "opcao 1")
+    const leadingNumberMatch = text.match(/^(\d+)(?:[.\-)\s]|$)/)
+    const trailingNumberMatch = text.match(/(?:op[çc][aã]o|numero|item|escolho|quero)\s*(\d+)/i)
+    const candidateNumber = leadingNumberMatch ? leadingNumberMatch[1] : (trailingNumberMatch ? trailingNumberMatch[1] : null)
+
+    if (candidateNumber) {
+      const keyMatch = options.find(opt => (opt.key || '').trim() === candidateNumber)
+      if (keyMatch) return keyMatch
+    }
+
+    // 3. Correspondência parcial do texto contido no label
+    if (text.length >= 3) {
+      const partialLabelMatch = options.find(opt => {
+        const label = (opt.label || '').trim().toLowerCase()
+        return label.includes(text) || text.includes(label)
+      })
+      if (partialLabelMatch) return partialLabelMatch
+    }
+
+    return null
+  }
+
+  validateFlow(flowData) {
+    const errors = []
+    if (!flowData || typeof flowData !== 'object') {
+      return { valid: false, errors: ['Estrutura do fluxo inválida'] }
+    }
+    const steps = flowData.steps || []
+    if (!Array.isArray(steps) || steps.length === 0) {
+      return { valid: false, errors: ['O fluxo precisa de pelo menos uma etapa (step)'] }
+    }
+
+    const stepIds = new Set(steps.map(s => s.id))
+    let hasInitial = false
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]
+      if (!step.id) errors.push(`Etapa #${i + 1} não possui 'id'`)
+      if (step.isInitial) hasInitial = true
+
+      if (Array.isArray(step.options)) {
+        for (const opt of step.options) {
+          if (!opt.nextStepId) {
+            errors.push(`Opção "${opt.label || opt.key}" na etapa "${step.title || step.id}" não tem 'nextStepId'`)
+          } else if (!stepIds.has(opt.nextStepId)) {
+            errors.push(`Opção "${opt.label || opt.key}" na etapa "${step.title || step.id}" aponta para nextStepId inexistente: "${opt.nextStepId}"`)
+          }
+        }
+      }
+    }
+
+    if (!hasInitial && steps.length > 0) {
+      steps[0].isInitial = true
+    }
+
+    return { valid: errors.length === 0, errors }
   }
 
   getTemplates() {
@@ -399,19 +540,26 @@ class TypebotManager {
   getFlow(sessionId) {
     if (!this.flows[sessionId]) {
       this.flows[sessionId] = this.getDefaultConfig(sessionId)
-      this.saveFlows()
+      this.saveSessionFlow(sessionId)
     }
     return this.flows[sessionId]
   }
 
   saveFlow(sessionId, flowData) {
     const current = this.getFlow(sessionId)
-    this.flows[sessionId] = {
+    const merged = {
       ...current,
       ...flowData,
       updatedAt: new Date().toISOString()
     }
-    this.saveFlows()
+    const validation = this.validateFlow(merged)
+    if (!validation.valid) {
+      const err = new Error(validation.errors.join('; '))
+      err.errors = validation.errors
+      throw err
+    }
+    this.flows[sessionId] = merged
+    this.saveSessionFlow(sessionId)
     return this.flows[sessionId]
   }
 
@@ -634,15 +782,12 @@ class TypebotManager {
           isHandover: !!initialStep.isHandover,
           reminderSent: false
         }
+        this.saveUserStates()
       } else {
         const currentStep = steps.find(s => s.id === userState.stepId) || initialStep
         const options = currentStep.options || []
 
-        const chosen = options.find(opt => {
-          const keyMatches = opt.key.trim().toLowerCase() === text.toLowerCase()
-          const labelMatches = opt.label.trim().toLowerCase() === text.toLowerCase()
-          return keyMatches || labelMatches
-        })
+        const chosen = this.matchOption(options, text)
 
         if (chosen) {
           nextStep = steps.find(s => s.id === chosen.nextStepId)
@@ -655,11 +800,13 @@ class TypebotManager {
             isHandover: !!nextStep.isHandover,
             reminderSent: false
           }
+          this.saveUserStates()
         } else {
           isInvalidOption = true
           nextStep = currentStep
           this.userStates[stateKey].lastInteraction = now
           this.userStates[stateKey].reminderSent = false
+          this.saveUserStates()
         }
       }
 
@@ -765,10 +912,7 @@ class TypebotManager {
       } else {
         // Encontrar opção do menu inicial
         const options = initialStep.options || []
-        const chosen = options.find(opt => {
-          return opt.key.trim().toLowerCase() === cleanText.toLowerCase() ||
-                 opt.label.trim().toLowerCase() === cleanText.toLowerCase()
-        })
+        const chosen = this.matchOption(options, cleanText)
 
         if (chosen) {
           nextStep = steps.find(s => s.id === chosen.nextStepId) || initialStep
@@ -780,10 +924,7 @@ class TypebotManager {
     } else {
       const current = steps.find(s => s.id === currentStepId) || initialStep
       const options = current.options || []
-      const chosen = options.find(opt => {
-        return opt.key.trim().toLowerCase() === cleanText.toLowerCase() ||
-               opt.label.trim().toLowerCase() === cleanText.toLowerCase()
-      })
+      const chosen = this.matchOption(options, cleanText)
 
       if (chosen) {
         nextStep = steps.find(s => s.id === chosen.nextStepId) || initialStep
@@ -810,15 +951,30 @@ class TypebotManager {
   }
 
   addLog(sessionId, logEntry) {
-    if (!this.flows[sessionId]) return
-    if (!this.flows[sessionId].logs) {
-      this.flows[sessionId].logs = []
+    if (!sessionId) return
+    try {
+      const logFile = path.join(LOGS_DIR, `${sessionId}.json`)
+      let sessionLogs = []
+      if (fs.existsSync(logFile)) {
+        try {
+          sessionLogs = JSON.parse(fs.readFileSync(logFile, 'utf8'))
+        } catch (_) {
+          sessionLogs = []
+        }
+      }
+      sessionLogs.unshift(logEntry)
+      if (sessionLogs.length > 100) {
+        sessionLogs.pop()
+      }
+      fs.writeFileSync(logFile, JSON.stringify(sessionLogs, null, 2), 'utf8')
+
+      // Mantém array leve na memória para o dashboard sem reescrever o fluxo
+      if (this.flows[sessionId]) {
+        this.flows[sessionId].logs = sessionLogs.slice(0, 20)
+      }
+    } catch (err) {
+      console.error(`[TypebotManager] Erro ao gravar log para ${sessionId}:`, err.message)
     }
-    this.flows[sessionId].logs.unshift(logEntry)
-    if (this.flows[sessionId].logs.length > 50) {
-      this.flows[sessionId].logs.pop()
-    }
-    this.saveFlows()
   }
 
 }

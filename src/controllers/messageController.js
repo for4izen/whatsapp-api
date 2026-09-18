@@ -1,6 +1,14 @@
 const { sessions } = require('../sessions')
 const { sendErrorResponse } = require('../utils')
 
+const normalizeChatId = (chatId) => {
+  if (!chatId) return chatId
+  const trimmed = String(chatId).trim()
+  if (trimmed.includes('@')) return trimmed
+  const cleaned = trimmed.replace(/[^0-9]/g, '')
+  return `${cleaned}@c.us`
+}
+
 /**
  * Get message by its ID from a given chat using the provided client.
  * @async
@@ -12,10 +20,25 @@ const { sendErrorResponse } = require('../utils')
  * @throws {Error} - Throws an error if the provided client, message ID or chat ID is invalid.
  */
 const _getMessageById = async (client, messageId, chatId) => {
-  const chat = await client.getChatById(chatId)
-  const messages = await chat.fetchMessages({ limit: 100 })
-  const message = messages.find((message) => { return message.id.id === messageId })
-  return message
+  // 1. Try native, fast client lookup if serialized ID is passed
+  if (messageId && typeof client.getMessageById === 'function') {
+    try {
+      const msg = await client.getMessageById(messageId)
+      if (msg) return msg
+    } catch (_) {}
+  }
+
+  // 2. Fallback to searching chat messages
+  if (chatId) {
+    const targetChatId = normalizeChatId(chatId)
+    const chat = await client.getChatById(targetChatId)
+    if (chat && typeof chat.fetchMessages === 'function') {
+      const messages = await chat.fetchMessages({ limit: 100 })
+      return messages.find((m) => m.id.id === messageId || m.id._serialized === messageId)
+    }
+  }
+
+  return null
 }
 
 /**
@@ -358,6 +381,82 @@ const unstar = async (req, res) => {
   }
 }
 
+/**
+ * @function edit
+ * @async
+ * @description Edits the content of an already sent message.
+ * @param {Object} req - The request object.
+ * @param {Object} res - The response object.
+ * @param {string} req.params.sessionId - The session ID.
+ * @param {string} req.body.messageId - The message ID.
+ * @param {string} req.body.chatId - The chat ID.
+ * @param {string} req.body.newContent - The new text content for the message.
+ * @param {Object} [req.body.options] - Optional edit options.
+ */
+const edit = async (req, res) => {
+  try {
+    const { messageId, chatId, newContent, options } = req.body
+    if (!newContent) {
+      return sendErrorResponse(res, 400, 'newContent is required')
+    }
+    const client = sessions.get(req.params.sessionId)
+    const message = await _getMessageById(client, messageId, chatId)
+    if (!message) { throw new Error('Message not Found') }
+    const result = await message.edit(newContent, options || {})
+    res.json({ success: true, result })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * @function pin
+ * @async
+ * @description Pins a message for a specified duration in seconds.
+ * @param {Object} req - The request object.
+ * @param {Object} res - The response object.
+ * @param {string} req.params.sessionId - The session ID.
+ * @param {string} req.body.messageId - The message ID.
+ * @param {string} req.body.chatId - The chat ID.
+ * @param {number} [req.body.duration] - Duration in seconds (e.g. 86400 = 24h, 604800 = 7 days, 2592000 = 30 days). Default 86400.
+ */
+const pin = async (req, res) => {
+  try {
+    const { messageId, chatId, duration } = req.body
+    const pinDuration = Number(duration) || 86400
+    const client = sessions.get(req.params.sessionId)
+    const message = await _getMessageById(client, messageId, chatId)
+    if (!message) { throw new Error('Message not Found') }
+    const result = await message.pin(pinDuration)
+    res.json({ success: true, result })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * @function unpin
+ * @async
+ * @description Unpins a pinned message.
+ * @param {Object} req - The request object.
+ * @param {Object} res - The response object.
+ * @param {string} req.params.sessionId - The session ID.
+ * @param {string} req.body.messageId - The message ID.
+ * @param {string} req.body.chatId - The chat ID.
+ */
+const unpin = async (req, res) => {
+  try {
+    const { messageId, chatId } = req.body
+    const client = sessions.get(req.params.sessionId)
+    const message = await _getMessageById(client, messageId, chatId)
+    if (!message) { throw new Error('Message not Found') }
+    const result = await message.unpin()
+    res.json({ success: true, result })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
 module.exports = {
   getClassInfo,
   deleteMessage,
@@ -371,5 +470,8 @@ module.exports = {
   react,
   reply,
   star,
-  unstar
+  unstar,
+  edit,
+  pin,
+  unpin
 }

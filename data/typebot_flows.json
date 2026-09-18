@@ -1,6 +1,6 @@
 {
   "Teste": {
-    "enabled": false,
+    "enabled": true,
     "ignoreGroups": true,
     "resetKeyword": "menu",
     "sessionTimeoutMinutes": 30,
@@ -102,6 +102,15 @@
       }
     ],
     "logs": [
+      {
+        "time": "2026-09-18T03:23:25.723Z",
+        "from": "166499306221616@lid",
+        "contactName": "Yghor Lopes ⚡",
+        "input": "oi",
+        "stepId": "start",
+        "stepTitle": "Menu Principal",
+        "isHandover": false
+      },
       {
         "time": "2026-09-11T20:20:48.204Z",
         "from": "166499306221616@lid",
@@ -256,12 +265,12 @@
         "isHandover": false
       }
     ],
-    "updatedAt": "2026-09-12T01:16:34.039Z",
+    "updatedAt": "2026-09-18T03:23:09.782Z",
     "stats": {
-      "totalInteractions": 3,
+      "totalInteractions": 4,
       "handoversTriggered": 0,
       "stepHits": {
-        "start": 1,
+        "start": 2,
         "step_precos": 2
       }
     },
@@ -269,7 +278,20 @@
     "typingDelaySeconds": 2,
     "reminderEnabled": false,
     "reminderTimeoutMinutes": 5,
-    "reminderMessage": "Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:"
+    "reminderMessage": "Ainda está por aí, {nome}? Digite uma opção para prosseguir ou 0 para o menu principal:",
+    "businessHours": {
+      "enabled": false,
+      "startTime": "08:00",
+      "endTime": "18:00",
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "outOfHoursMessage": "Olá {nome}! No momento nosso time está fora do horário de atendimento comercial (Segunda a Sexta, das 08h às 18h).\n\nSua mensagem foi recebida e responderemos logo no início do próximo expediente!"
+    }
   },
   "org_d5d0ffc1ddd9": {
     "enabled": true,

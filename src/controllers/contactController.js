@@ -1,6 +1,12 @@
 const { sessions } = require('../sessions')
 const { sendErrorResponse } = require('../utils')
 
+const formatContactId = (id) => {
+  if (!id) return id
+  const cleaned = String(id).replace(/[^0-9]/g, '')
+  return cleaned.endsWith('@c.us') ? cleaned : `${cleaned}@c.us`
+}
+
 /**
  * Retrieves information about a WhatsApp contact by ID.
  *
@@ -17,9 +23,9 @@ const getClassInfo = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
+    const contact = await client.getContactById(formatContactId(contactId))
     if (!contact) {
-      sendErrorResponse(res, 404, 'Contact not Found')
+      return sendErrorResponse(res, 404, 'Contact not Found')
     }
     res.json({ success: true, result: contact })
   } catch (error) {
@@ -43,9 +49,9 @@ const block = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
+    const contact = await client.getContactById(formatContactId(contactId))
     if (!contact) {
-      sendErrorResponse(res, 404, 'Contact not Found')
+      return sendErrorResponse(res, 404, 'Contact not Found')
     }
     const result = await contact.block()
     res.json({ success: true, result })
@@ -70,9 +76,9 @@ const getAbout = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
+    const contact = await client.getContactById(formatContactId(contactId))
     if (!contact) {
-      sendErrorResponse(res, 404, 'Contact not Found')
+      return sendErrorResponse(res, 404, 'Contact not Found')
     }
     const result = await contact.getAbout()
     res.json({ success: true, result })
@@ -97,8 +103,8 @@ const getChat = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
-    if (!contact) { sendErrorResponse(res, 404, 'Contact not Found') }
+    const contact = await client.getContactById(formatContactId(contactId))
+    if (!contact) { return sendErrorResponse(res, 404, 'Contact not Found') }
     const result = await contact.getChat()
     res.json({ success: true, result })
   } catch (error) {
@@ -122,8 +128,8 @@ const getFormattedNumber = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
-    if (!contact) { sendErrorResponse(res, 404, 'Contact not Found') }
+    const contact = await client.getContactById(formatContactId(contactId))
+    if (!contact) { return sendErrorResponse(res, 404, 'Contact not Found') }
     const result = await contact.getFormattedNumber()
     res.json({ success: true, result })
   } catch (error) {
@@ -147,8 +153,8 @@ const getCountryCode = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
-    if (!contact) { sendErrorResponse(res, 404, 'Contact not Found') }
+    const contact = await client.getContactById(formatContactId(contactId))
+    if (!contact) { return sendErrorResponse(res, 404, 'Contact not Found') }
     const result = await contact.getCountryCode()
     res.json({ success: true, result })
   } catch (error) {
@@ -172,8 +178,8 @@ const getProfilePicUrl = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
-    if (!contact) { sendErrorResponse(res, 404, 'Contact not Found') }
+    const contact = await client.getContactById(formatContactId(contactId))
+    if (!contact) { return sendErrorResponse(res, 404, 'Contact not Found') }
     const result = await contact.getProfilePicUrl() || null
     res.json({ success: true, result })
   } catch (error) {
@@ -197,8 +203,8 @@ const unblock = async (req, res) => {
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const contact = await client.getContactById(contactId)
-    if (!contact) { sendErrorResponse(res, 404, 'Contact not Found') }
+    const contact = await client.getContactById(formatContactId(contactId))
+    if (!contact) { return sendErrorResponse(res, 404, 'Contact not Found') }
     const result = await contact.unblock()
     res.json({ success: true, result })
   } catch (error) {

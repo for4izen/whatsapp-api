@@ -1,6 +1,14 @@
 const { sessions } = require('../sessions')
 const { sendErrorResponse } = require('../utils')
 
+const normalizeChatId = (chatId) => {
+  if (!chatId) return chatId
+  const trimmed = String(chatId).trim()
+  if (trimmed.includes('@')) return trimmed
+  const cleaned = trimmed.replace(/[^0-9]/g, '')
+  return `${cleaned}@c.us`
+}
+
 /**
  * @function
  * @async
@@ -17,8 +25,8 @@ const getClassInfo = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
+    const chat = await client.getChatById(normalizeChatId(chatId))
+    if (!chat) { return sendErrorResponse(res, 404, 'Chat not Found') }
     res.json({ success: true, chat })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
@@ -41,8 +49,8 @@ const clearMessages = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
+    const chat = await client.getChatById(normalizeChatId(chatId))
+    if (!chat) { return sendErrorResponse(res, 404, 'Chat not Found') }
     const clearMessages = await chat.clearMessages()
     res.json({ success: true, clearMessages })
   } catch (error) {
@@ -66,8 +74,8 @@ const clearState = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
+    const chat = await client.getChatById(normalizeChatId(chatId))
+    if (!chat) { return sendErrorResponse(res, 404, 'Chat not Found') }
     const clearState = await chat.clearState()
     res.json({ success: true, clearState })
   } catch (error) {
@@ -92,8 +100,8 @@ const deleteChat = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
+    const chat = await client.getChatById(normalizeChatId(chatId))
+    if (!chat) { return sendErrorResponse(res, 404, 'Chat not Found') }
     const deleteChat = await chat.delete()
     res.json({ success: true, deleteChat })
   } catch (error) {
@@ -240,8 +248,8 @@ const getContact = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
+    const chat = await client.getChatById(normalizeChatId(chatId))
+    if (!chat) { return sendErrorResponse(res, 404, 'Chat not Found') }
     const contact = await chat.getContact()
     res.json({ success: true, contact })
   } catch (error) {
@@ -265,8 +273,8 @@ const sendStateRecording = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
+    const chat = await client.getChatById(normalizeChatId(chatId))
+    if (!chat) { return sendErrorResponse(res, 404, 'Chat not Found') }
     const sendStateRecording = await chat.sendStateRecording()
     res.json({ success: true, sendStateRecording })
   } catch (error) {
@@ -290,10 +298,37 @@ const sendStateTyping = async (req, res) => {
   try {
     const { chatId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const chat = await client.getChatById(chatId)
-    if (!chat) { sendErrorResponse(res, 404, 'Chat not Found') }
+    const chat = await client.getChatById(normalizeChatId(chatId))
+    if (!chat) { return sendErrorResponse(res, 404, 'Chat not Found') }
     const sendStateTyping = await chat.sendStateTyping()
     res.json({ success: true, sendStateTyping })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * Gets all pinned messages in a chat.
+ * @async
+ * @function getPinnedMessages
+ * @param {object} req - Express request object.
+ * @param {object} res - Express response object.
+ * @param {string} req.params.sessionId - Session ID.
+ * @param {string} req.body.chatId - Chat ID.
+ */
+const getPinnedMessages = async (req, res) => {
+  try {
+    const { chatId: rawChatId } = req.body
+    if (!rawChatId) {
+      return sendErrorResponse(res, 400, 'chatId is required')
+    }
+    const chatId = String(rawChatId).includes('@') ? String(rawChatId).trim() : `${String(rawChatId).replace(/[^0-9]/g, '')}@c.us`
+    const client = sessions.get(req.params.sessionId)
+    if (!client) {
+      return sendErrorResponse(res, 404, 'Session not Found')
+    }
+    const pinnedMessages = await client.getPinnedMessages(chatId)
+    res.json({ success: true, pinnedMessages })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
   }
@@ -307,5 +342,6 @@ module.exports = {
   fetchMessages,
   getContact,
   sendStateRecording,
-  sendStateTyping
+  sendStateTyping,
+  getPinnedMessages
 }

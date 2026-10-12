@@ -745,13 +745,15 @@ function updateBroadcastSessionsSelect(sessions) {
   // Options for connected sessions
   const connected = sessions.filter(s => s.status === 'CONNECTED')
   
-  // 1. Broadcast Session Select (Only connected sessions)
-  let broadcastOpts = `<option value="">Selecione uma instância conectada (${connected.length} ativas)...</option>`
-  connected.forEach(s => {
-    broadcastOpts += `<option value="${s.sessionId}">${s.sessionId} (${s.user?.wid ? s.user.wid.replace('@c.us', '') : 'Conectada'})</option>`
-  })
-  broadcastSelect.innerHTML = broadcastOpts
-  if (currentBroadcastVal) broadcastSelect.value = currentBroadcastVal
+  // 1. Broadcast Session Select (se for um <select>)
+  if (broadcastSelect.tagName === 'SELECT') {
+    let broadcastOpts = `<option value="">Selecione uma instância conectada (${connected.length} ativas)...</option>`
+    connected.forEach(s => {
+      broadcastOpts += `<option value="${s.sessionId}">${s.sessionId} (${s.user?.wid ? s.user.wid.replace('@c.us', '') : 'Conectada'})</option>`
+    })
+    broadcastSelect.innerHTML = broadcastOpts
+    if (currentBroadcastVal) broadcastSelect.value = currentBroadcastVal
+  }
 
   // 2. Modal Scope Session Select (Global + All available sessions)
   let modalOpts = `<option value="*">🌐 Global (Disponível em qualquer instância)</option>`
@@ -1140,10 +1142,15 @@ function renderServerCampaignsTable(campaigns) {
   const container = document.getElementById('serverCampaignsTableContainer')
   if (!container) return
 
-  if (campaigns.length === 0) {
+  let filteredCampaigns = campaigns
+  if (currentTypebotSessionId) {
+    filteredCampaigns = campaigns.filter(c => c.sessionId === currentTypebotSessionId)
+  }
+
+  if (filteredCampaigns.length === 0) {
     container.innerHTML = `
       <div style="text-align: center; padding: 2rem; color: var(--text-dim);">
-        Nenhuma campanha em segundo plano ou agendada ainda.
+        Nenhuma campanha em segundo plano para esta instância ainda.
       </div>
     `
     return
@@ -1401,6 +1408,8 @@ let currentTypebotSessionId = ''
 
 async function openInstanceFlowPage(sessionId) {
   currentTypebotSessionId = sessionId
+  currentChatSessionId = sessionId
+  currentActiveChatId = ''
   switchMainTab('instance-flow')
 
   const titleEl = document.getElementById('instancePageSessionName')
@@ -1426,7 +1435,50 @@ async function openInstanceFlowPage(sessionId) {
     phoneBadge.textContent = `WhatsApp: ${numberDisplay}`
   }
 
+  // Abre na sub-aba de Chat por padrão e carrega as conversas desta instância
+  switchInstanceSubTab('chat')
   await loadTypebotFlowForSession(sessionId)
+}
+
+function switchInstanceSubTab(subTab) {
+  const btnChat = document.getElementById('btnInstanceSubChat')
+  const btnBot = document.getElementById('btnInstanceSubBot')
+  const btnBroadcast = document.getElementById('btnInstanceSubBroadcast')
+
+  const sectionChat = document.getElementById('instanceSubSectionChat')
+  const sectionBot = document.getElementById('instanceSubSectionBot')
+  const sectionBroadcast = document.getElementById('instanceSubSectionBroadcast')
+
+  if (btnChat) btnChat.classList.remove('active')
+  if (btnBot) btnBot.classList.remove('active')
+  if (btnBroadcast) btnBroadcast.classList.remove('active')
+
+  if (sectionChat) sectionChat.classList.add('hidden')
+  if (sectionBot) sectionBot.classList.add('hidden')
+  if (sectionBroadcast) sectionBroadcast.classList.add('hidden')
+
+  if (subTab === 'chat') {
+    if (btnChat) btnChat.classList.add('active')
+    if (sectionChat) sectionChat.classList.remove('hidden')
+    if (currentTypebotSessionId) {
+      currentChatSessionId = currentTypebotSessionId
+      fetchChatLogsForSession(currentChatSessionId)
+    }
+  } else if (subTab === 'bot') {
+    if (btnBot) btnBot.classList.add('active')
+    if (sectionBot) sectionBot.classList.remove('hidden')
+  } else if (subTab === 'broadcast') {
+    if (btnBroadcast) btnBroadcast.classList.add('active')
+    if (sectionBroadcast) sectionBroadcast.classList.remove('hidden')
+
+    // Fixar a instância atual no formulário de disparo
+    const sessionInput = document.getElementById('broadcastSessionSelect')
+    if (sessionInput) sessionInput.value = currentTypebotSessionId
+
+    refreshBroadcastSelects()
+    renderContactLists()
+    fetchServerCampaigns()
+  }
 }
 
 function exitInstanceFlowPage() {
@@ -1445,8 +1497,65 @@ async function loadTypebotFlowForSession(sessionId) {
 
     currentTypebotConfig = json.flow
     renderTypebotConfigToForm(currentTypebotConfig)
+
+    // Carregar configurações de logs de mensagens da sessão
+    await loadSessionSettings(sessionId)
   } catch (err) {
     console.error('Error fetching typebot config:', err)
+  }
+}
+
+async function loadSessionSettings(sessionId) {
+  try {
+    const res = await apiRequest(`/session/settings/${sessionId}`)
+    const json = await res.json()
+    if (res.ok && json.success && json.settings) {
+      const toggle = document.getElementById('sessionLogsEnabledToggle')
+      if (toggle) {
+        toggle.checked = json.settings.logsEnabled !== false
+        updateSessionLogsStatusLabel(toggle.checked)
+      }
+    }
+  } catch (err) {
+    console.error('Error loading session settings:', err)
+  }
+}
+
+function updateSessionLogsStatusLabel(enabled) {
+  const label = document.getElementById('sessionLogsStatusText')
+  if (!label) return
+  if (enabled) {
+    label.textContent = 'Ativo'
+    label.style.color = 'var(--wa-green)'
+  } else {
+    label.textContent = 'Desativado'
+    label.style.color = 'var(--text-muted)'
+  }
+}
+
+async function onSessionLogsToggleChange() {
+  const toggle = document.getElementById('sessionLogsEnabledToggle')
+  if (!toggle || !currentTypebotSessionId) return
+  const isChecked = toggle.checked
+  updateSessionLogsStatusLabel(isChecked)
+
+  try {
+    const res = await apiRequest(`/session/settings/${currentTypebotSessionId}`, {
+      method: 'POST',
+      body: JSON.stringify({ logsEnabled: isChecked })
+    })
+    const json = await res.json()
+    if (res.ok && json.success) {
+      showToast(isChecked ? 'Logs de mensagens ativados!' : 'Logs de mensagens desativados para esta instância.', isChecked ? 'success' : 'info', 2000)
+    } else {
+      showToast('Falha ao atualizar preferência de logs.', 'error')
+      toggle.checked = !isChecked
+      updateSessionLogsStatusLabel(!isChecked)
+    }
+  } catch (err) {
+    showToast('Erro de conexão ao salvar status dos logs.', 'error')
+    toggle.checked = !isChecked
+    updateSessionLogsStatusLabel(!isChecked)
   }
 }
 
@@ -2226,6 +2335,689 @@ async function submitCloneFlow() {
     }
   } catch (err) {
     showToast('Erro ao comunicar com o servidor.', 'error')
+  }
+}
+
+// ==========================================================================
+// CHAT & CONVERSATIONS MODULE (SQLITE LIVE LOGS PER INSTANCE)
+// ==========================================================================
+let currentChatSessionId = ''
+let currentActiveChatId = ''
+let cachedChatLogs = []
+let chatPollInterval = null
+
+// Polling suave em segundo plano quando o usuário estiver na tela de chat da instância
+if (!chatPollInterval) {
+  chatPollInterval = setInterval(() => {
+    const isInstanceChatOpen = activeTab === 'instance-flow' && 
+      document.getElementById('instanceSubSectionChat') && 
+      !document.getElementById('instanceSubSectionChat').classList.contains('hidden')
+
+    if (isInstanceChatOpen && currentChatSessionId) {
+      fetchChatLogsForSession(currentChatSessionId, true)
+    }
+  }, 4000)
+}
+
+async function fetchChatLogsForSession(sessionId, isSilent = false) {
+  if (!sessionId) return
+  try {
+    if (!isSilent) {
+      const listEl = document.getElementById('chatContactsList')
+      if (listEl) listEl.innerHTML = '<div class="chat-empty-contacts">Carregando conversas do banco...</div>'
+    }
+
+    const res = await apiRequest(`/message/logs/${sessionId}?limit=200`)
+    const json = await res.json()
+
+    if (res.ok && json.success) {
+      cachedChatLogs = json.data || []
+      renderChatContactsList()
+      if (currentActiveChatId) {
+        renderActiveChatMessages()
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao buscar logs de chat:', err)
+  }
+}
+
+// Cache de fotos de perfil (chatId -> url)
+const chatAvatarsCache = new Map()
+
+// Gera avatar elegante com iniciais e cor baseada no ID quando não houver foto
+function getAvatarPlaceholder(name, isGroup, id) {
+  const clean = (name || id || '').trim()
+  let initials = isGroup ? '👥' : '👤'
+  if (clean && !isGroup) {
+    const letters = clean.replace(/[^a-zA-Z0-9]/g, '')
+    if (letters.length > 0) {
+      initials = letters.slice(0, 2).toUpperCase()
+    }
+  } else if (clean && isGroup) {
+    const words = clean.split(' ').filter(Boolean)
+    if (words.length >= 2) {
+      initials = (words[0][0] + words[1][0]).toUpperCase()
+    } else if (words.length === 1 && words[0].length >= 2) {
+      initials = words[0].slice(0, 2).toUpperCase()
+    }
+  }
+
+  // Cor determinística baseada na string
+  let hash = 0
+  for (let i = 0; i < clean.length; i++) {
+    hash = clean.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const hue = Math.abs(hash % 360)
+  const bgStyle = isGroup 
+    ? `background: linear-gradient(135deg, hsl(${hue}, 70%, 25%), hsl(${(hue + 40) % 360}, 70%, 20%));`
+    : `background: linear-gradient(135deg, hsl(${hue}, 65%, 28%), hsl(${(hue + 30) % 360}, 65%, 22%));`
+
+  return { initials, bgStyle }
+}
+
+async function fetchContactAvatarUrl(chatId) {
+  if (!chatId || !currentChatSessionId) return null
+  if (chatAvatarsCache.has(chatId)) return chatAvatarsCache.get(chatId)
+
+  try {
+    const res = await apiRequest(`/client/getProfilePicUrl/${currentChatSessionId}`, {
+      method: 'POST',
+      body: JSON.stringify({ contactId: chatId })
+    })
+    const json = await res.json()
+    if (res.ok && json.result) {
+      chatAvatarsCache.set(chatId, json.result)
+      return json.result
+    }
+  } catch (e) {
+    // Silencioso
+  }
+
+  chatAvatarsCache.set(chatId, null)
+  return null
+}
+
+// Filtro ativo de tipo de conversa ('all', 'contacts', 'groups')
+let currentChatTypeFilter = 'all'
+
+// Armazena posts de status/stories agrupados por autor/contato
+let cachedStatusByContact = new Map()
+
+// Estado do modal de status ativo
+let activeContactStatuses = []
+let activeContactStatusIndex = 0
+
+function setChatTypeFilter(type) {
+  currentChatTypeFilter = type
+  const btns = [
+    { id: 'chatFilterBtnAll', val: 'all' },
+    { id: 'chatFilterBtnContacts', val: 'contacts' },
+    { id: 'chatFilterBtnGroups', val: 'groups' }
+  ]
+  btns.forEach(b => {
+    const el = document.getElementById(b.id)
+    if (el) {
+      if (b.val === type) el.classList.add('active')
+      else el.classList.remove('active')
+    }
+  })
+  const searchVal = document.getElementById('chatSearchInput')?.value || ''
+  renderChatContactsList(searchVal)
+}
+
+function renderChatContactsList(filterText = '') {
+  const listEl = document.getElementById('chatContactsList')
+  if (!listEl) return
+
+  if (!cachedChatLogs || cachedChatLogs.length === 0) {
+    listEl.innerHTML = '<div class="chat-empty-contacts">Nenhuma mensagem registrada nesta instância ainda.</div>'
+    return
+  }
+
+  // 1. Separar e mapear status/stories por autor/contato
+  cachedStatusByContact = new Map()
+  cachedChatLogs.forEach(msg => {
+    if (msg.fromNumber === 'status@broadcast' || msg.toNumber === 'status@broadcast') {
+      const authorId = msg.author || msg.fromNumber
+      if (!authorId || authorId === 'status@broadcast') return
+      
+      const cleanAuthor = authorId.replace(/@c\.us|@lid|@g\.us/, '')
+      const list = cachedStatusByContact.get(authorId) || []
+      list.push(msg)
+      cachedStatusByContact.set(authorId, list)
+      if (cleanAuthor !== authorId) {
+        const cleanList = cachedStatusByContact.get(cleanAuthor) || []
+        cleanList.push(msg)
+        cachedStatusByContact.set(cleanAuthor, cleanList)
+      }
+    }
+  })
+
+  // 2. Agrupar mensagens reais por conversa (chatId) - EXCLUINDO status@broadcast da listagem de chats
+  const conversationMap = new Map()
+
+  cachedChatLogs.forEach(msg => {
+    // Ignorar status@broadcast na lista de conversas
+    if (msg.fromNumber === 'status@broadcast' || msg.toNumber === 'status@broadcast') {
+      return
+    }
+
+    const contactId = msg.direction === 'IN' ? msg.fromNumber : msg.toNumber
+    if (!contactId) return
+
+    const isGroup = contactId.includes('@g.us')
+    const chatName = msg.chatName || ''
+    const senderName = msg.senderName || ''
+
+    if (!conversationMap.has(contactId)) {
+      conversationMap.set(contactId, {
+        chatId: contactId,
+        chatName: chatName,
+        senderName: senderName,
+        isGroup: isGroup,
+        lastMessage: msg.body || (msg.hasMedia ? '📷 Mídia' : ''),
+        timestamp: msg.timestamp || 0,
+        createdAt: msg.createdAt || '',
+        unread: false
+      })
+    } else {
+      const existing = conversationMap.get(contactId)
+      // Preservar o melhor nome de grupo ou contato disponível
+      if (!existing.chatName && chatName) existing.chatName = chatName
+      if (!existing.senderName && senderName) existing.senderName = senderName
+      if (msg.timestamp && msg.timestamp > (existing.timestamp || 0)) {
+        existing.lastMessage = msg.body || (msg.hasMedia ? '📷 Mídia' : '')
+        existing.timestamp = msg.timestamp
+        existing.createdAt = msg.createdAt
+      }
+    }
+  })
+
+  let conversations = Array.from(conversationMap.values())
+
+  // Filtro por tipo: Todos, Contatos ou Grupos
+  if (currentChatTypeFilter === 'contacts') {
+    conversations = conversations.filter(c => !c.isGroup)
+  } else if (currentChatTypeFilter === 'groups') {
+    conversations = conversations.filter(c => c.isGroup)
+  }
+
+  // Filtro textual de busca
+  if (filterText) {
+    const query = filterText.toLowerCase()
+    conversations = conversations.filter(c => 
+      c.chatId.toLowerCase().includes(query) || 
+      (c.chatName && c.chatName.toLowerCase().includes(query)) ||
+      (c.senderName && c.senderName.toLowerCase().includes(query)) ||
+      (c.lastMessage && c.lastMessage.toLowerCase().includes(query))
+    )
+  }
+
+  if (conversations.length === 0) {
+    listEl.innerHTML = '<div class="chat-empty-contacts">Nenhuma conversa encontrada neste filtro.</div>'
+    return
+  }
+
+  listEl.innerHTML = ''
+  conversations.forEach(c => {
+    const isGroup = c.isGroup
+    const cleanId = c.chatId.replace(/@c\.us|@g\.us|@lid/, '')
+    const isLid = c.chatId.includes('@lid')
+    
+    // Formatar número de telefone amigável (+55 92 9...) caso seja número comum
+    const formatPhone = (num) => {
+      const digits = String(num).replace(/\D/g, '')
+      if (digits.length >= 10 && digits.length <= 13) return `+${digits}`
+      return digits
+    }
+
+    // Nome principal e subtítulo: priorizar SEMPRE o nome real do usuário ou o número de telefone
+    let displayName = ''
+    let subLabel = ''
+    if (isGroup) {
+      displayName = c.chatName || `Grupo (${cleanId.slice(0, 15)})`
+      subLabel = '👥 Grupo de WhatsApp'
+    } else {
+      // Prioridade: senderName (nome no perfil do WhatsApp) > chatName > número de telefone
+      if (c.senderName) {
+        displayName = c.senderName
+        subLabel = !isLid ? formatPhone(cleanId) : 'Usuário do WhatsApp'
+      } else if (c.chatName) {
+        displayName = c.chatName
+        subLabel = !isLid ? formatPhone(cleanId) : 'Usuário do WhatsApp'
+      } else {
+        displayName = !isLid ? formatPhone(cleanId) : 'Usuário do WhatsApp'
+        subLabel = !isLid ? '' : cleanId
+      }
+    }
+
+    const timeStr = c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+    
+    // Verificar se este contato postou algum status recente
+    const contactStatuses = !isGroup ? (cachedStatusByContact.get(c.chatId) || cachedStatusByContact.get(cleanId) || []) : []
+    const hasStatus = contactStatuses.length > 0
+
+    // Avatar Placeholder com Iniciais
+    const placeholder = getAvatarPlaceholder(displayName, isGroup, cleanId)
+    const cachedPic = chatAvatarsCache.get(c.chatId)
+
+    const item = document.createElement('div')
+    item.className = `chat-contact-item ${c.chatId === currentActiveChatId ? 'active' : ''}`
+    item.dataset.chatId = c.chatId
+    item.onclick = () => selectActiveChat(c.chatId, displayName, subLabel, isGroup)
+
+    const avatarHtml = cachedPic 
+      ? `<img src="${escapeHtml(cachedPic)}" alt="" class="chat-avatar-img">`
+      : `<span class="chat-avatar-text">${placeholder.initials}</span>`
+
+    item.innerHTML = `
+      <div class="chat-avatar-wrapper ${hasStatus ? 'has-status' : ''}" title="${hasStatus ? 'Este contato postou Status recente!' : ''}">
+        <div class="chat-contact-avatar" id="avatar-${escapeHtml(c.chatId.replace(/[^a-zA-Z0-9]/g, '_'))}" style="${placeholder.bgStyle}">
+          ${avatarHtml}
+        </div>
+        ${hasStatus ? '<span class="status-dot-indicator" title="Status disponível"></span>' : ''}
+      </div>
+      <div class="chat-contact-content">
+        <div class="chat-contact-top">
+          <span class="chat-contact-name" title="${escapeHtml(c.chatId)}">
+            ${isGroup ? '<span style="font-size: 0.8rem; margin-right: 0.2rem;">👥</span>' : ''}
+            ${escapeHtml(displayName)}
+          </span>
+          <span class="chat-contact-time">${timeStr}</span>
+        </div>
+        <div style="font-size: 0.72rem; color: var(--text-dim); margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${escapeHtml(subLabel)}
+        </div>
+        <div class="chat-contact-preview">${escapeHtml(c.lastMessage || '')}</div>
+      </div>
+    `
+    listEl.appendChild(item)
+
+    // Buscar foto em background se ainda não consultada
+    if (!chatAvatarsCache.has(c.chatId)) {
+      fetchContactAvatarUrl(c.chatId).then(picUrl => {
+        if (picUrl) {
+          const el = document.getElementById(`avatar-${c.chatId.replace(/[^a-zA-Z0-9]/g, '_')}`)
+          if (el) el.innerHTML = `<img src="${escapeHtml(picUrl)}" alt="" class="chat-avatar-img">`
+        }
+      })
+    }
+  })
+
+  // Se nenhuma conversa selecionada e houver lista, seleciona a primeira
+  if (!currentActiveChatId && conversations.length > 0) {
+    const first = conversations[0]
+    const cleanId = first.chatId.replace(/@c\.us|@g\.us|@lid/, '')
+    const isGrp = first.isGroup
+    const isLid = first.chatId.includes('@lid')
+    const dispName = isGrp 
+      ? (first.chatName || `Grupo (${cleanId.slice(0, 15)})`) 
+      : (first.senderName || first.chatName || (!isLid ? `+${cleanId}` : 'Usuário do WhatsApp'))
+    const subLbl = isGrp ? '👥 Grupo de WhatsApp' : (first.senderName && !isLid ? `+${cleanId}` : '')
+    selectActiveChat(first.chatId, dispName, subLbl, isGrp)
+  }
+}
+
+function filterChatList(text) {
+  renderChatContactsList(text)
+}
+
+function selectActiveChat(chatId, displayName, subLabel, isGroupParam) {
+  currentActiveChatId = chatId
+  const isGroup = isGroupParam !== undefined ? isGroupParam : chatId.includes('@g.us')
+  const cleanId = chatId.replace(/@c\.us|@g\.us|@lid/, '')
+  const isLid = chatId.includes('@lid')
+
+  // Se displayName não for fornecido diretamente, tentar obter dos cachedChatLogs
+  if (!displayName) {
+    const found = cachedChatLogs.find(m => m.fromNumber === chatId || m.toNumber === chatId)
+    if (isGroup) {
+      displayName = found?.chatName || `Grupo (${cleanId.slice(0, 15)})`
+      subLabel = '👥 Grupo de WhatsApp'
+    } else {
+      displayName = found?.senderName || found?.chatName || (!isLid ? `+${cleanId}` : 'Usuário do WhatsApp')
+      subLabel = found?.senderName && !isLid ? `+${cleanId}` : ''
+    }
+  }
+
+  // Atualizar seleção visual na sidebar
+  const items = document.querySelectorAll('.chat-contact-item')
+  items.forEach(el => el.classList.remove('active'))
+  
+  const selectedEl = Array.from(items).find(el => el.dataset.chatId === chatId)
+  if (selectedEl) selectedEl.classList.add('active')
+
+  // Atualizar cabeçalho da conversa
+  const titleEl = document.getElementById('currentChatContactTitle')
+  const subtitleEl = document.getElementById('currentChatContactSubtitle')
+  const avatarEl = document.getElementById('currentChatAvatar')
+  const avatarWrap = document.getElementById('currentChatAvatarWrap')
+  const badgeEl = document.getElementById('currentChatBadge')
+  const statusBtn = document.getElementById('btnViewContactStatus')
+
+  const placeholder = getAvatarPlaceholder(displayName, isGroup, cleanId)
+  const cachedPic = chatAvatarsCache.get(chatId)
+
+  if (titleEl) titleEl.textContent = displayName
+  if (subtitleEl) subtitleEl.textContent = `${subLabel || chatId} • Instância: ${currentChatSessionId}`
+  
+  // Badge no topo (GRUPO vs CONTATO)
+  if (badgeEl) {
+    badgeEl.classList.remove('hidden', 'badge-group', 'badge-contact')
+    if (isGroup) {
+      badgeEl.classList.add('badge-group')
+      badgeEl.textContent = '👥 Grupo'
+    } else {
+      badgeEl.classList.add('badge-contact')
+      badgeEl.textContent = '👤 Contato Direto'
+    }
+  }
+
+  // Verificar se há status postados por este contato
+  const contactStatuses = !isGroup ? (cachedStatusByContact.get(chatId) || cachedStatusByContact.get(cleanId) || []) : []
+  if (statusBtn) {
+    if (contactStatuses.length > 0) {
+      statusBtn.classList.remove('hidden')
+      statusBtn.title = `Ver ${contactStatuses.length} status postados por este contato`
+      statusBtn.innerHTML = `<span>🟣</span><span>Status (${contactStatuses.length})</span>`
+    } else {
+      statusBtn.classList.add('hidden')
+    }
+  }
+
+  if (avatarWrap) {
+    if (contactStatuses.length > 0) {
+      avatarWrap.classList.add('has-status')
+      avatarWrap.onclick = () => openContactStatusModal()
+      avatarWrap.title = 'Clique para ver os status deste contato'
+    } else {
+      avatarWrap.classList.remove('has-status')
+      avatarWrap.onclick = null
+      avatarWrap.title = ''
+    }
+  }
+
+  if (avatarEl) {
+    avatarEl.style.cssText = placeholder.bgStyle
+    if (cachedPic) {
+      avatarEl.innerHTML = `<img src="${escapeHtml(cachedPic)}" alt="" class="chat-avatar-img">`
+    } else {
+      avatarEl.innerHTML = `<span class="chat-avatar-text">${placeholder.initials}</span>`
+      fetchContactAvatarUrl(chatId).then(picUrl => {
+        if (picUrl && currentActiveChatId === chatId) {
+          avatarEl.innerHTML = `<img src="${escapeHtml(picUrl)}" alt="" class="chat-avatar-img">`
+        }
+      })
+    }
+  }
+
+  renderActiveChatMessages()
+}
+
+// ==========================================
+// VISUALIZADOR DE STATUS / STORIES DO CONTATO
+// ==========================================
+function openContactStatusModal() {
+  if (!currentActiveChatId) return
+  const cleanId = currentActiveChatId.replace(/@c\.us|@g\.us|@lid/, '')
+  const statuses = cachedStatusByContact.get(currentActiveChatId) || cachedStatusByContact.get(cleanId) || []
+
+  if (statuses.length === 0) {
+    showToast('Este contato não possui status salvos recentemente.', 'info')
+    return
+  }
+
+  activeContactStatuses = statuses.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+  activeContactStatusIndex = 0
+
+  // Configurar cabeçalho do modal
+  const titleEl = document.getElementById('statusModalTitle')
+  const subtitleEl = document.getElementById('statusModalSubtitle')
+  const avatarEl = document.getElementById('statusModalAvatar')
+
+  const contactTitle = document.getElementById('currentChatContactTitle')?.textContent || cleanId
+  if (titleEl) titleEl.textContent = `Status de ${contactTitle}`
+  if (subtitleEl) subtitleEl.textContent = `${activeContactStatuses.length} postagens sincronizadas`
+
+  const cachedPic = chatAvatarsCache.get(currentActiveChatId)
+  if (avatarEl) {
+    if (cachedPic) avatarEl.innerHTML = `<img src="${escapeHtml(cachedPic)}" alt="" class="chat-avatar-img">`
+    else avatarEl.innerHTML = '👤'
+  }
+
+  renderCurrentStatusSlide()
+  openModal('contactStatusModal')
+}
+
+function renderCurrentStatusSlide() {
+  const barsContainer = document.getElementById('statusStoriesBars')
+  const viewer = document.getElementById('statusStoryViewer')
+  const counterText = document.getElementById('statusCounterText')
+  if (!viewer || activeContactStatuses.length === 0) return
+
+  const total = activeContactStatuses.length
+  const current = activeContactStatuses[activeContactStatusIndex]
+
+  if (counterText) {
+    counterText.textContent = `${activeContactStatusIndex + 1} de ${total}`
+  }
+
+  // Barras de progresso de status (estilo Instagram / WhatsApp)
+  if (barsContainer) {
+    barsContainer.innerHTML = ''
+    for (let i = 0; i < total; i++) {
+      const bar = document.createElement('div')
+      bar.style.cssText = `
+        flex: 1; height: 3px; border-radius: 2px;
+        background: ${i <= activeContactStatusIndex ? 'var(--wa-green)' : 'rgba(255,255,255,0.2)'};
+        transition: background 0.3s ease;
+      `
+      barsContainer.appendChild(bar)
+    }
+  }
+
+  // Renderizar o conteúdo do status atual
+  const dateStr = current.createdAt ? new Date(current.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : ''
+  let mediaHtml = ''
+
+  if (current.mediaPath) {
+    const isVideo = current.mimeType?.includes('mp4') || current.mediaPath.endsWith('.mp4')
+    if (isVideo) {
+      mediaHtml = `
+        <video src="${escapeHtml(current.mediaPath)}" controls autoplay style="max-height: 400px; max-width: 100%; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);"></video>
+      `
+    } else {
+      mediaHtml = `
+        <a href="${escapeHtml(current.mediaPath)}" target="_blank" title="Clique para abrir imagem em tamanho original">
+          <img src="${escapeHtml(current.mediaPath)}" alt="Status" style="max-height: 400px; max-width: 100%; object-fit: contain; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+        </a>
+      `
+    }
+  } else if (current.body) {
+    // Status em texto colorido
+    mediaHtml = `
+      <div style="background: linear-gradient(135deg, #7c3aed, #db2777); color: #fff; padding: 2.5rem 1.5rem; border-radius: 16px; font-size: 1.25rem; font-weight: 600; line-height: 1.5; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);">
+        ${escapeHtml(current.body)}
+      </div>
+    `
+  } else {
+    mediaHtml = `<div style="color: var(--text-dim); padding: 2rem;">[Mídia de status expirada ou não encontrada]</div>`
+  }
+
+  viewer.innerHTML = `
+    <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+      ${mediaHtml}
+      ${current.body && current.mediaPath ? `<div style="color: #fff; font-size: 0.95rem; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 8px;">${escapeHtml(current.body)}</div>` : ''}
+      <span style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">🕒 Postado em: ${dateStr}</span>
+    </div>
+  `
+
+  // Habilitar / desabilitar botões de navegação
+  const btnPrev = document.getElementById('btnPrevStatus')
+  const btnNext = document.getElementById('btnNextStatus')
+  if (btnPrev) btnPrev.disabled = activeContactStatusIndex === 0
+  if (btnNext) btnNext.disabled = activeContactStatusIndex >= total - 1
+}
+
+function navigateContactStatus(delta) {
+  const nextIdx = activeContactStatusIndex + delta
+  if (nextIdx >= 0 && nextIdx < activeContactStatuses.length) {
+    activeContactStatusIndex = nextIdx
+    renderCurrentStatusSlide()
+  }
+}
+
+function renderActiveChatMessages() {
+  const container = document.getElementById('chatMessagesBody')
+  if (!container || !currentActiveChatId) return
+
+  const messages = cachedChatLogs.filter(m => 
+    m.fromNumber === currentActiveChatId || m.toNumber === currentActiveChatId
+  ).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+
+  if (messages.length === 0) {
+    container.innerHTML = `
+      <div class="chat-placeholder-state">
+        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📭</div>
+        <h4>Nenhuma mensagem neste chat</h4>
+      </div>
+    `
+    return
+  }
+
+  const isGroup = currentActiveChatId.includes('@g.us')
+
+  container.innerHTML = ''
+  messages.forEach(msg => {
+    const isOut = msg.direction === 'OUT'
+    const timeStr = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+    
+    let ackIcon = ''
+    if (isOut) {
+      if (msg.ack === 3) ackIcon = '<span class="message-ack">✓✓</span>'
+      else if (msg.ack === 2) ackIcon = '<span class="message-ack" style="color: rgba(255,255,255,0.4)">✓✓</span>'
+      else ackIcon = '<span class="message-ack" style="color: rgba(255,255,255,0.4)">✓</span>'
+    }
+
+    // Sender header para mensagens recebidas (especialmente em grupo ou com pushname)
+    let senderHeader = ''
+    if (!isOut && isGroup) {
+      const authorClean = (msg.author || msg.fromNumber || '').replace(/@c\.us|@lid|@g\.us/, '')
+      const isLid = (msg.author || msg.fromNumber || '').includes('@lid')
+      let senderDisplay = ''
+      if (msg.senderName) {
+        senderDisplay = msg.senderName
+      } else if (!isLid && authorClean) {
+        senderDisplay = `+${authorClean}`
+      } else {
+        senderDisplay = 'Participante'
+      }
+      senderHeader = `<div class="message-sender">${escapeHtml(senderDisplay)}</div>`
+    }
+
+    // Mídia / Imagem / Figurinha (Sticker)
+    let mediaContent = ''
+    if (msg.mediaPath) {
+      const isSticker = msg.type === 'sticker' || msg.mimeType === 'image/webp' || msg.mediaPath.endsWith('.webp')
+      if (isSticker) {
+        mediaContent = `
+          <div class="message-sticker-wrap">
+            <img src="${escapeHtml(msg.mediaPath)}" alt="Figurinha" class="message-sticker-img" loading="lazy">
+          </div>
+        `
+      } else if (msg.mimeType && (msg.mimeType.startsWith('image/') || msg.mediaPath.endsWith('.jpg') || msg.mediaPath.endsWith('.png'))) {
+        mediaContent = `
+          <div class="message-media-wrap">
+            <a href="${escapeHtml(msg.mediaPath)}" target="_blank" title="Clique para abrir imagem em tamanho real">
+              <img src="${escapeHtml(msg.mediaPath)}" alt="Imagem" class="message-media-img" loading="lazy">
+            </a>
+          </div>
+        `
+      } else {
+        mediaContent = `
+          <div class="message-media-wrap">
+            <a href="${escapeHtml(msg.mediaPath)}" target="_blank" class="message-media-download">
+              📎 Baixar Anexo (${escapeHtml(msg.type || 'arquivo')})
+            </a>
+          </div>
+        `
+      }
+    } else if (msg.hasMedia && !msg.mediaPath) {
+      const fallbackIcon = msg.type === 'sticker' ? '🎭' : '📷'
+      mediaContent = `<div class="message-media-fallback">${fallbackIcon} [${escapeHtml(msg.type || 'Mídia')}]</div>`
+    }
+
+    const bubble = document.createElement('div')
+    bubble.className = `message-bubble ${isOut ? 'outgoing' : 'incoming'}`
+    bubble.innerHTML = `
+      ${senderHeader}
+      ${mediaContent}
+      ${msg.body ? `<div class="message-text">${escapeHtml(msg.body)}</div>` : ''}
+      <div class="message-meta">
+        <span>${timeStr}</span>
+        ${ackIcon}
+      </div>
+    `
+    container.appendChild(bubble)
+  })
+
+  // Auto scroll para o final
+  container.scrollTop = container.scrollHeight
+}
+
+async function refreshCurrentChatMessages() {
+  if (currentChatSessionId) {
+    showToast('Atualizando mensagens...', 'info', 800)
+    await fetchChatLogsForSession(currentChatSessionId)
+  }
+}
+
+async function sendQuickChatMessage() {
+  const input = document.getElementById('chatQuickInput')
+  const content = input.value.trim()
+  if (!content) return
+
+  if (!currentChatSessionId || !currentActiveChatId) {
+    showToast('Selecione uma instância e um contato.', 'warning')
+    return
+  }
+
+  const session = cachedSessions.find(s => s.sessionId === currentChatSessionId)
+  if (!session || !session.isConnected) {
+    showToast('A instância selecionada não está conectada.', 'error')
+    return
+  }
+
+  try {
+    const btn = document.getElementById('btnSendQuickChat')
+    btn.disabled = true
+    btn.textContent = 'Enviando...'
+
+    const cleanChatId = currentActiveChatId.endsWith('@c.us') ? currentActiveChatId : `${currentActiveChatId}@c.us`
+    const res = await apiRequest(`/client/sendMessage/${currentChatSessionId}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        chatId: cleanChatId,
+        contentType: 'string',
+        content: content
+      })
+    })
+
+    const json = await res.json()
+    if (res.ok && json.success) {
+      input.value = ''
+      showToast('Mensagem enviada com sucesso!', 'success', 1000)
+      await fetchChatLogsForSession(currentChatSessionId, true)
+    } else {
+      showToast(json.message || 'Falha ao enviar mensagem.', 'error')
+    }
+  } catch (err) {
+    showToast('Erro de conexão ao enviar mensagem.', 'error')
+  } finally {
+    const btn = document.getElementById('btnSendQuickChat')
+    btn.disabled = false
+    btn.textContent = 'Enviar ➤'
   }
 }
 

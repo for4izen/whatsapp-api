@@ -1,12 +1,5 @@
-const fs = require('fs')
-const path = require('path')
 const { MessageMedia } = require('whatsapp-web.js')
-
-const DATA_DIR = path.join(__dirname, '../data')
-const FLOWS_DIR = path.join(DATA_DIR, 'flows')
-const LOGS_DIR = path.join(DATA_DIR, 'logs')
-const USER_STATES_FILE = path.join(DATA_DIR, 'user_states.json')
-const LEGACY_FLOWS_FILE = path.join(DATA_DIR, 'typebot_flows.json')
+const { run, query } = require('./database')
 
 class TypebotManager {
   constructor() {
@@ -19,73 +12,48 @@ class TypebotManager {
     this.initStorage()
   }
 
-  initStorage() {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true })
-    }
-    if (!fs.existsSync(FLOWS_DIR)) {
-      fs.mkdirSync(FLOWS_DIR, { recursive: true })
-    }
-    if (!fs.existsSync(LOGS_DIR)) {
-      fs.mkdirSync(LOGS_DIR, { recursive: true })
-    }
-
-    // Carregar estados de usuário persistidos
-    if (fs.existsSync(USER_STATES_FILE)) {
-      try {
-        this.userStates = JSON.parse(fs.readFileSync(USER_STATES_FILE, 'utf8'))
-      } catch (err) {
-        console.error('[TypebotManager] Erro ao carregar user_states:', err.message)
-        this.userStates = {}
-      }
-    }
-
-    // 1. Carregar fluxos modulares individuais por sessão
+  async initStorage() {
+    // 1. Carregar estados de usuário do SQLite
     try {
-      const files = fs.readdirSync(FLOWS_DIR).filter(f => f.endsWith('.json'))
-      for (const file of files) {
-        const sessionId = path.basename(file, '.json')
-        const filePath = path.join(FLOWS_DIR, file)
+      const stateRows = await query('SELECT stateKey, stateData FROM user_states')
+      for (const row of stateRows) {
         try {
-          this.flows[sessionId] = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+          this.userStates[row.stateKey] = JSON.parse(row.stateData)
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.error('[TypebotManager] Erro ao carregar user_states do SQLite:', err.message)
+      this.userStates = {}
+    }
+
+    // 2. Carregar fluxos do SQLite
+    try {
+      const flowRows = await query('SELECT sessionId, flowData FROM typebot_flows')
+      for (const row of flowRows) {
+        try {
+          this.flows[row.sessionId] = JSON.parse(row.flowData)
         } catch (err) {
-          console.error(`[TypebotManager] Erro ao ler fluxo ${file}:`, err.message)
+          console.error(`[TypebotManager] Erro ao parsear fluxo ${row.sessionId}:`, err.message)
         }
       }
     } catch (err) {
-      console.error('[TypebotManager] Erro ao ler pasta de fluxos:', err.message)
-    }
-
-    // 2. Fallback de migração automática do arquivo monolítico legado
-    if (fs.existsSync(LEGACY_FLOWS_FILE)) {
-      try {
-        const raw = fs.readFileSync(LEGACY_FLOWS_FILE, 'utf8')
-        const legacyFlows = JSON.parse(raw)
-        for (const [sessionId, flow] of Object.entries(legacyFlows)) {
-          if (!this.flows[sessionId]) {
-            this.flows[sessionId] = flow
-            this.saveSessionFlow(sessionId)
-          }
-        }
-      } catch (err) {
-        console.error('[TypebotManager] Erro ao ler arquivo legado:', err.message)
-      }
+      console.error('[TypebotManager] Erro ao carregar fluxos do SQLite:', err.message)
     }
   }
 
   saveSessionFlow(sessionId) {
     if (!sessionId || !this.flows[sessionId]) return
-    try {
-      const sessionFile = path.join(FLOWS_DIR, `${sessionId}.json`)
-      fs.writeFileSync(sessionFile, JSON.stringify(this.flows[sessionId], null, 2), 'utf8')
-
-      // Sincroniza espelho legado para manter retrocompatibilidade se algum script externo consumir
-      try {
-        fs.writeFileSync(LEGACY_FLOWS_FILE, JSON.stringify(this.flows, null, 2), 'utf8')
-      } catch (_) {}
-    } catch (err) {
-      console.error(`[TypebotManager] Erro ao salvar fluxo da sessão ${sessionId}:`, err.message)
-    }
+    const flowJson = JSON.stringify(this.flows[sessionId])
+    const now = new Date().toISOString()
+    run(`
+      INSERT INTO typebot_flows (sessionId, flowData, updatedAt)
+      VALUES (?, ?, ?)
+      ON CONFLICT(sessionId) DO UPDATE SET
+        flowData = excluded.flowData,
+        updatedAt = excluded.updatedAt
+    `, [sessionId, flowJson, now]).catch(err => {
+      console.error(`[TypebotManager] Erro ao persistir fluxo ${sessionId} no SQLite:`, err.message)
+    })
   }
 
   saveFlows() {
@@ -98,12 +66,22 @@ class TypebotManager {
     if (this.stateSaveTimer) {
       clearTimeout(this.stateSaveTimer)
     }
-    // Debounce de 300ms para evitar escrita excessiva em disco durante rajadas de mensagens
-    this.stateSaveTimer = setTimeout(() => {
+    // Debounce de 300ms para persistir em lote sem concorrência
+    this.stateSaveTimer = setTimeout(async () => {
       try {
-        fs.writeFileSync(USER_STATES_FILE, JSON.stringify(this.userStates, null, 2), 'utf8')
+        const now = new Date().toISOString()
+        for (const [key, state] of Object.entries(this.userStates)) {
+          const [sessionId, chatId] = key.split(':')
+          await run(`
+            INSERT INTO user_states (stateKey, sessionId, chatId, stateData, updatedAt)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(stateKey) DO UPDATE SET
+              stateData = excluded.stateData,
+              updatedAt = excluded.updatedAt
+          `, [key, sessionId || 'default', chatId || key, JSON.stringify(state), now])
+        }
       } catch (err) {
-        console.error('[TypebotManager] Erro ao persistir user_states:', err.message)
+        console.error('[TypebotManager] Erro ao persistir user_states no SQLite:', err.message)
       }
     }, 300)
   }
@@ -686,6 +664,11 @@ class TypebotManager {
 
       if (message.fromMe) return
 
+      // Ignorar atualizações de status / stories para o chatbot
+      if (message.isStatus || message.from === 'status@broadcast' || message.to === 'status@broadcast') {
+        return
+      }
+
       // Deduplicação: ignorar se esta mesma mensagem já foi recebida/processada
       const msgId = message.id?._serialized || message.id?.id || message.id
       if (msgId) {
@@ -953,24 +936,23 @@ class TypebotManager {
   addLog(sessionId, logEntry) {
     if (!sessionId) return
     try {
-      const logFile = path.join(LOGS_DIR, `${sessionId}.json`)
-      let sessionLogs = []
-      if (fs.existsSync(logFile)) {
-        try {
-          sessionLogs = JSON.parse(fs.readFileSync(logFile, 'utf8'))
-        } catch (_) {
-          sessionLogs = []
-        }
-      }
-      sessionLogs.unshift(logEntry)
-      if (sessionLogs.length > 100) {
-        sessionLogs.pop()
-      }
-      fs.writeFileSync(logFile, JSON.stringify(sessionLogs, null, 2), 'utf8')
+      const createdAt = logEntry.timestamp || logEntry.time || new Date().toISOString()
+      run(`
+        INSERT INTO session_logs (sessionId, logEntry, createdAt)
+        VALUES (?, ?, ?)
+      `, [sessionId, JSON.stringify(logEntry), createdAt]).catch(err => {
+        console.error(`[TypebotManager] Erro ao persistir log no SQLite para ${sessionId}:`, err.message)
+      })
 
-      // Mantém array leve na memória para o dashboard sem reescrever o fluxo
+      // Mantém array leve na memória para o dashboard
       if (this.flows[sessionId]) {
-        this.flows[sessionId].logs = sessionLogs.slice(0, 20)
+        if (!this.flows[sessionId].logs) {
+          this.flows[sessionId].logs = []
+        }
+        this.flows[sessionId].logs.unshift(logEntry)
+        if (this.flows[sessionId].logs.length > 20) {
+          this.flows[sessionId].logs.pop()
+        }
       }
     } catch (err) {
       console.error(`[TypebotManager] Erro ao gravar log para ${sessionId}:`, err.message)

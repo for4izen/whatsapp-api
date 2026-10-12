@@ -28,14 +28,16 @@ const _getMessageById = async (client, messageId, chatId) => {
     } catch (_) {}
   }
 
-  // 2. Fallback to searching chat messages
+  // 2. Fallback to searching chat messages (com try-catch seguro para não lançar 'r')
   if (chatId) {
-    const targetChatId = normalizeChatId(chatId)
-    const chat = await client.getChatById(targetChatId)
-    if (chat && typeof chat.fetchMessages === 'function') {
-      const messages = await chat.fetchMessages({ limit: 100 })
-      return messages.find((m) => m.id.id === messageId || m.id._serialized === messageId)
-    }
+    try {
+      const targetChatId = normalizeChatId(chatId)
+      const chat = await client.getChatById(targetChatId)
+      if (chat && typeof chat.fetchMessages === 'function') {
+        const messages = await chat.fetchMessages({ limit: 100 })
+        return messages.find((m) => m.id.id === messageId || m.id._serialized === messageId)
+      }
+    } catch (_) {}
   }
 
   return null
@@ -105,10 +107,168 @@ const downloadMedia = async (req, res) => {
   try {
     const { messageId, chatId, everyone } = req.body
     const client = sessions.get(req.params.sessionId)
+    if (!client) { throw new Error('Session not found') }
+
+    // 1. Tentar método nativo do objeto Message
     const message = await _getMessageById(client, messageId, chatId)
-    if (!message) { throw new Error('Message not Found') }
-    const messageMedia = await message.downloadMedia(everyone)
-    res.json({ success: true, messageMedia })
+    if (message && typeof message.downloadMedia === 'function') {
+      try {
+        const messageMedia = await message.downloadMedia(everyone)
+        if (messageMedia && messageMedia.data) {
+          // Salva no banco e disco
+          const { logMessage } = require('../database/messageLogger')
+          logMessage(req.params.sessionId, message, message.fromMe ? 'OUT' : 'IN', messageMedia)
+          return res.json({ success: true, messageMedia })
+        }
+      } catch (e) {
+        // Fallback para download direto via pupPage
+      }
+    }
+
+    // 2. Download direto via pupPage se o método da biblioteca falhar
+    if (client.pupPage) {
+      try {
+        const directMedia = await client.pupPage.evaluate(async (msgId) => {
+          try {
+            const Msg = window.require('WAWebCollections')?.Msg
+            let msg = Msg?.get(msgId)
+            if (!msg && Msg?.getMessagesById) {
+              const res = await Msg.getMessagesById([msgId]).catch(() => null)
+              msg = res?.messages?.[0]
+            }
+
+            if (!msg && Msg?.getModelsArray) {
+              const models = Msg.getModelsArray()
+              msg = models.find(m => {
+                const s = m.id?._serialized || m.id?.$1 || m.id?.id || String(m.id || '')
+                return s.includes(msgId) || (typeof msgId === 'string' && msgId.includes(m.id?.id || '---'))
+              })
+            }
+
+            if (!msg) return { error: 'Mensagem não encontrada na coleção' }
+
+            // 1. Se for sticker, o arquivo já está disponível em base64
+            if (msg.body && msg.type === 'sticker' && msg.body.length > 50) {
+              return {
+                data: msg.body.includes('base64,') ? msg.body.split('base64,')[1] : msg.body,
+                mimetype: 'image/webp',
+                filename: msg.filename || 'sticker.webp'
+              }
+            }
+
+            // 2. Disparar resolução de mídia se ainda não estiver resolvida
+            if (msg.mediaData && msg.mediaData.mediaStage !== 'RESOLVED' && typeof msg.downloadMedia === 'function') {
+              await msg.downloadMedia({ downloadEvenIfExpensive: true, rmrReason: 1 }).catch(() => {})
+            }
+
+            // 3. Descriptografar e baixar bytes em qualidade original
+            const downloadManager = window.require('WAWebDownloadManager')?.downloadManager
+            if (downloadManager && msg.directPath) {
+              const mockQpl = { addAnnotations: () => mockQpl, addPoint: () => mockQpl }
+              let decrypted = null
+              try {
+                decrypted = await downloadManager.downloadAndMaybeDecrypt({
+                  directPath: msg.directPath,
+                  encFilehash: msg.encFilehash,
+                  filehash: msg.filehash,
+                  mediaKey: msg.mediaKey,
+                  mediaKeyTimestamp: msg.mediaKeyTimestamp,
+                  type: msg.type,
+                  mimetype: msg.mimetype || 'image/jpeg',
+                  signal: new AbortController().signal,
+                  downloadQpl: mockQpl
+                })
+              } catch (decErr) {
+                if (downloadManager.downloadAndDecrypt) {
+                  decrypted = await downloadManager.downloadAndDecrypt({
+                    directPath: msg.directPath,
+                    encFilehash: msg.encFilehash,
+                    filehash: msg.filehash,
+                    mediaKey: msg.mediaKey,
+                    mediaKeyTimestamp: msg.mediaKeyTimestamp,
+                    type: msg.type,
+                    mimetype: msg.mimetype || 'image/jpeg',
+                    signal: new AbortController().signal
+                  }).catch(() => null)
+                }
+              }
+
+              if (decrypted) {
+                const data = await window.WWebJS.arrayBufferToBase64Async(decrypted)
+                return {
+                  data,
+                  mimetype: msg.mimetype || 'image/jpeg',
+                  filename: msg.filename,
+                  filesize: msg.size || decrypted.byteLength
+                }
+              }
+            }
+
+            // Extração via Blob em cache ou renderableUrl
+            if (msg.mediaData?.mediaBlob) {
+              const blob = msg.mediaData.mediaBlob
+              if (typeof blob.read === 'function') {
+                const ab = await blob.read()
+                if (msg.type !== 'image' || ab.byteLength > 8000) {
+                  const data = await window.WWebJS.arrayBufferToBase64Async(ab)
+                  return {
+                    data,
+                    mimetype: msg.mimetype || 'image/jpeg',
+                    filename: msg.filename,
+                    filesize: msg.size || ab.byteLength
+                  }
+                }
+              } else if (blob instanceof Blob) {
+                const ab = await blob.arrayBuffer()
+                if (msg.type !== 'image' || ab.byteLength > 8000) {
+                  const data = await window.WWebJS.arrayBufferToBase64Async(ab)
+                  return {
+                    data,
+                    mimetype: msg.mimetype || blob.type || 'image/jpeg',
+                    filename: msg.filename,
+                    filesize: msg.size || ab.byteLength
+                  }
+                }
+              }
+            }
+
+            const renderUrl = msg.mediaData?.renderableUrl || msg.mediaData?._renderableUrl
+            if (renderUrl && typeof renderUrl === 'string' && renderUrl.startsWith('blob:')) {
+              try {
+                const resp = await fetch(renderUrl)
+                const ab = await resp.arrayBuffer()
+                if (ab && (msg.type !== 'image' ? ab.byteLength > 2000 : ab.byteLength > 8000)) {
+                  const data = await window.WWebJS.arrayBufferToBase64Async(ab)
+                  return {
+                    data,
+                    mimetype: msg.mimetype || resp.headers.get('content-type') || 'image/jpeg',
+                    filename: msg.filename,
+                    filesize: ab.byteLength
+                  }
+                }
+              } catch (fetchErr) {}
+            }
+          } catch (err) {
+            return { error: err.message }
+          }
+          return null
+        }, messageId)
+
+        if (directMedia) {
+          if (directMedia.data && !directMedia.error) {
+            const { logMessage } = require('../database/messageLogger')
+            const mockMsg = { id: { _serialized: messageId }, from: chatId, to: '', type: 'image', hasMedia: true }
+            logMessage(req.params.sessionId, mockMsg, 'IN', directMedia)
+            return res.json({ success: true, messageMedia: directMedia })
+          }
+          return res.json({ success: false, directMedia })
+        }
+      } catch (pupErr) {
+        return res.json({ success: false, error: pupErr.message })
+      }
+    }
+
+    res.json({ success: false, error: 'Não foi possível baixar a mídia da mensagem' })
   } catch (error) {
     sendErrorResponse(res, 500, error.message)
   }
@@ -457,6 +617,23 @@ const unpin = async (req, res) => {
   }
 }
 
+const { getMessageLogs } = require('../database/messageLogger')
+
+/**
+ * Consulta logs de mensagens salvas no SQLite
+ */
+const getLogs = async (req, res) => {
+  try {
+    const { sessionId } = req.params
+    const { chatId, limit, offset } = req.query
+    const client = sessions.get(sessionId) || null
+    const logs = await getMessageLogs({ sessionId, chatId, limit, offset, client })
+    res.json({ success: true, count: logs.length, data: logs })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
 module.exports = {
   getClassInfo,
   deleteMessage,
@@ -473,5 +650,6 @@ module.exports = {
   unstar,
   edit,
   pin,
-  unpin
+  unpin,
+  getLogs
 }

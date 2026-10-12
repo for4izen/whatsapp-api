@@ -34,13 +34,6 @@
         </svg>
         <span>Instâncias</span>
       </button>
-      <button class="nav-tab-btn" id="tabBtnBroadcast" onclick="switchMainTab('broadcast')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-        <span>Envio em Massa</span>
-      </button>
       <button class="nav-tab-btn" id="tabBtnDocs" onclick="switchMainTab('docs')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon">
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
@@ -149,175 +142,7 @@
     </div>
 
     <!-- VIEW 2: BROADCAST & CONTACT LISTS -->
-    <div id="viewBroadcast" class="view-tab-content hidden">
-      <div class="broadcast-layout">
-        <!-- Left Column: Contact Lists Manager -->
-        <div class="broadcast-col-lists">
-          <div class="card-box">
-            <div class="box-header">
-              <div>
-                <h3 class="box-title">📋 Listas de Contatos</h3>
-                <p class="box-desc">Crie e segmente listas por instância ou globais.</p>
-              </div>
-              <button class="btn btn-primary btn-sm" onclick="openCreateListModal()">
-                <span>+ Nova Lista</span>
-              </button>
-            </div>
 
-            <!-- List of created contact groups -->
-            <div id="contactListsContainer" class="lists-group">
-              <!-- Rendered via JS -->
-            </div>
-
-            <div class="box-footer-actions">
-              <button class="btn btn-secondary btn-sm" onclick="exportListsBackup()" title="Baixar arquivo de backup JSON">
-                <span>📥 Exportar Backup</span>
-              </button>
-              <label class="btn btn-secondary btn-sm" style="margin: 0; cursor: pointer;" title="Importar arquivo de backup JSON">
-                <span>📤 Importar</span>
-                <input type="file" id="importListsFile" accept=".json" style="display: none;" onchange="importListsBackup(event)">
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- Right Column: Campaign Dispatcher & Progress -->
-        <div class="broadcast-col-campaign">
-          <div class="card-box">
-            <div class="box-header">
-              <div>
-                <h3 class="box-title">🚀 Disparo em Massa</h3>
-                <p class="box-desc">Configure mensagem, variações anti-ban e dispare para sua lista.</p>
-              </div>
-              <div id="campaignStatusBadge" class="badge badge-init">Pronto</div>
-            </div>
-
-            <form id="broadcastForm" onsubmit="event.preventDefault(); submitBroadcastCampaign();">
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="campaignNameInput">Nome da Campanha:</label>
-                  <input type="text" id="campaignNameInput" class="form-input" placeholder="Ex: Promoção Fim de Semana, Lançamento..." required>
-                </div>
-                <div class="form-group">
-                  <label for="broadcastSessionSelect">Instância Remetente:</label>
-                  <select id="broadcastSessionSelect" class="form-select" required onchange="onBroadcastSessionChanged()">
-                    <option value="">Selecione uma instância conectada...</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="broadcastListSelect">Lista de Destinatários:</label>
-                  <select id="broadcastListSelect" class="form-select" required onchange="onBroadcastListChanged()">
-                    <option value="">Selecione uma lista de contatos...</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="scheduleDateTimeInput">Agendar Envio (Opcional):</label>
-                  <input type="datetime-local" id="scheduleDateTimeInput" class="form-input">
-                  <span class="form-hint">Deixe em branco para disparar imediatamente agora.</span>
-                </div>
-              </div>
-
-              <!-- List Details Quick Banner -->
-              <div id="selectedListBanner" class="info-banner hidden">
-                <span id="selectedListInfoText">0 contatos selecionados</span>
-              </div>
-
-              <!-- Message Composer -->
-              <div class="form-group">
-                <div class="label-with-tags">
-                  <label for="broadcastMessageText">Mensagem:</label>
-                  <div class="tag-shortcuts">
-                    <button type="button" class="btn-tag" onclick="insertTag('{nome}')" title="Substitui pelo nome do contato">{nome}</button>
-                    <button type="button" class="btn-tag" onclick="insertTag('{numero}')" title="Substitui pelo número">{numero}</button>
-                    <button type="button" class="btn-tag" onclick="insertTag('{Olá|Oi|Tudo bem?}')" title="Alterna textos aleatoriamente (Spintax)">{Spintax}</button>
-                  </div>
-                </div>
-                <textarea id="broadcastMessageText" class="form-textarea" rows="5" placeholder="Olá {nome}! Tudo bem? Veja as novidades que preparamos para você..." required></textarea>
-                <span class="form-hint">Dica anti-bloqueio: use Spintax <code>{Olá|Oi|E aí}</code> para enviar saudações variadas a cada número.</span>
-              </div>
-
-              <!-- Anti-ban Delay Settings -->
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label for="delayMinInput">Intervalo Mínimo (segundos):</label>
-                  <input type="number" id="delayMinInput" min="2" max="120" value="5" class="form-input" required>
-                </div>
-                <div class="form-group">
-                  <label for="delayMaxInput">Intervalo Máximo (segundos):</label>
-                  <input type="number" id="delayMaxInput" min="3" max="180" value="12" class="form-input" required>
-                </div>
-              </div>
-
-              <!-- Dispatch Action Buttons -->
-              <div class="broadcast-controls-bar">
-                <button type="submit" id="btnStartBroadcast" class="btn btn-primary btn-lg">
-                  <span>🚀 Iniciar / Agendar</span>
-                </button>
-              </div>
-            </form>
-
-
-            <!-- Real-time Progress & Metrics Panel -->
-            <div id="broadcastProgressSection" class="broadcast-progress-box hidden">
-              <div class="progress-stats-row">
-                <div class="prog-stat">
-                  <span class="prog-stat-label">Total</span>
-                  <span class="prog-stat-val" id="progTotalCount">0</span>
-                </div>
-                <div class="prog-stat">
-                  <span class="prog-stat-label">Enviadas</span>
-                  <span class="prog-stat-val text-green" id="progSentCount">0</span>
-                </div>
-                <div class="prog-stat">
-                  <span class="prog-stat-label">Falhas</span>
-                  <span class="prog-stat-val text-red" id="progFailedCount">0</span>
-                </div>
-                <div class="prog-stat">
-                  <span class="prog-stat-label">Restantes</span>
-                  <span class="prog-stat-val text-dim" id="progRemainingCount">0</span>
-                </div>
-              </div>
-
-              <!-- Progress Bar -->
-              <div class="progress-bar-wrap">
-                <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
-              </div>
-
-              <!-- Live Execution Logs -->
-              <div class="live-log-container">
-                <div class="log-header">
-                  <span id="liveLogTitle">Registro de Disparos ao Vivo</span>
-                  <button class="btn-clear-log" onclick="clearBroadcastLogs()">Limpar</button>
-                </div>
-                <div id="broadcastLogs" class="log-content">
-                  <div class="log-line">Aguardando início do disparo...</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Server Background Campaigns List -->
-            <div class="campaigns-history-section">
-              <div class="box-header" style="margin-top: 2rem; margin-bottom: 1rem;">
-                <div>
-                  <h4 class="box-title">📊 Campanhas no Servidor (Background / Agendadas)</h4>
-                  <p class="box-desc">Rode campanhas simultâneas em várias instâncias sem precisar ficar na página.</p>
-                </div>
-                <button class="btn btn-secondary btn-sm" onclick="fetchServerCampaigns()">
-                  <span>🔄 Atualizar</span>
-                </button>
-              </div>
-
-              <div id="serverCampaignsTableContainer" class="campaigns-table-wrap">
-                <!-- Injetado dinamicamente via JS -->
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- ==========================================
          VIEW: GERENCIADOR E CHATBOT DA INSTÂNCIA (PÁGINA DEDICADA)
@@ -345,6 +170,16 @@
         </div>
 
         <div class="instance-header-right">
+          <!-- Controle de Logs de Mensagens da Instância -->
+          <div class="bot-switch-control" title="Ativa ou desativa a gravação de logs e histórico de mensagens para esta instância">
+            <span class="bot-switch-label">Logs de Mensagens:</span>
+            <label class="switch-wrap">
+              <input type="checkbox" id="sessionLogsEnabledToggle" onchange="onSessionLogsToggleChange()">
+              <span class="switch-slider"></span>
+            </label>
+            <span id="sessionLogsStatusText" style="font-size: 0.8rem; font-weight: 700; color: var(--wa-green);">Ativo</span>
+          </div>
+
           <div class="bot-switch-control">
             <span class="bot-switch-label">Status do Chatbot:</span>
             <label class="switch-wrap">
@@ -360,8 +195,104 @@
         </div>
       </div>
 
-      <!-- Barra de Ações Rápidas & Ferramentas -->
-      <div class="instance-tools-bar">
+      <!-- Sub-navegação interna da Instância: Chat ao Vivo vs Chatbot / Configurações -->
+      <div class="instance-subnav-bar" style="display: flex; gap: 0.75rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+        <button class="btn btn-secondary btn-sm active" id="btnInstanceSubChat" onclick="switchInstanceSubTab('chat')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon" style="width: 16px; height: 16px;">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>💬 Conversas (Chat ao Vivo)</span>
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btnInstanceSubBot" onclick="switchInstanceSubTab('bot')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon" style="width: 16px; height: 16px;">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+          <span>🤖 Fluxo do Chatbot & Regras</span>
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btnInstanceSubBroadcast" onclick="switchInstanceSubTab('broadcast')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon" style="width: 16px; height: 16px;">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          <span>🚀 Envio em Massa & Listas</span>
+        </button>
+      </div>
+
+      <!-- SUBTAB 1: CHAT AO VIVO DA INSTÂNCIA -->
+      <div id="instanceSubSectionChat" class="instance-subsection">
+        <div class="chat-module-container">
+          <!-- Sidebar de Contatos da Instância -->
+          <div class="chat-sidebar">
+            <div class="chat-sidebar-header">
+              <div class="chat-search-wrap">
+                <input type="text" id="chatSearchInput" class="form-input" placeholder="🔍 Filtrar conversa..." oninput="filterChatList(this.value)">
+              </div>
+              <!-- Filtro de tipo: Todos / Pessoas / Grupos -->
+              <div class="chat-type-filter-bar">
+                <button class="chat-type-btn active" id="chatFilterBtnAll" onclick="setChatTypeFilter('all')">Todos</button>
+                <button class="chat-type-btn" id="chatFilterBtnContacts" onclick="setChatTypeFilter('contacts')">👤 Conversas</button>
+                <button class="chat-type-btn" id="chatFilterBtnGroups" onclick="setChatTypeFilter('groups')">👥 Grupos</button>
+              </div>
+            </div>
+
+            <div id="chatContactsList" class="chat-contacts-list">
+              <div class="chat-empty-contacts">Nenhuma conversa encontrada nesta instância.</div>
+            </div>
+          </div>
+
+          <!-- Janela de Conversa Ativa -->
+          <div class="chat-main">
+            <!-- Top bar da conversa -->
+            <div class="chat-main-header" id="chatMainHeader">
+              <div class="chat-header-info">
+                <div class="chat-avatar-wrapper" id="currentChatAvatarWrap">
+                  <div class="chat-avatar" id="currentChatAvatar">👤</div>
+                </div>
+                <div>
+                  <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <h3 class="chat-contact-title" id="currentChatContactTitle">Selecione uma conversa</h3>
+                    <span id="currentChatBadge" class="chat-type-badge hidden"></span>
+                  </div>
+                  <span class="chat-contact-subtitle" id="currentChatContactSubtitle">Mensagens sincronizadas via SQLite</span>
+                </div>
+              </div>
+              <div class="chat-header-actions">
+                <button id="btnViewContactStatus" class="btn btn-secondary btn-sm hidden" onclick="openContactStatusModal()" title="Ver status/stories postados por este contato">
+                  <span style="font-size: 1.05rem;">🟣</span>
+                  <span>Ver Status</span>
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="refreshCurrentChatMessages()" title="Atualizar mensagens">
+                  <span>🔄 Atualizar</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Feed de Mensagens (Estilo WhatsApp) -->
+            <div class="chat-messages-body" id="chatMessagesBody">
+              <div class="chat-placeholder-state">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">💬</div>
+                <h4>Nenhuma conversa selecionada</h4>
+                <p>Escolha um contato na lista à esquerda para ver o histórico desta instância.</p>
+              </div>
+            </div>
+
+            <!-- Caixa de Envio Rápido -->
+            <form class="chat-input-bar" id="chatQuickSendForm" onsubmit="event.preventDefault(); sendQuickChatMessage();">
+              <input type="text" id="chatQuickInput" class="form-input" placeholder="Digite uma mensagem para responder pelo WhatsApp desta instância..." autocomplete="off">
+              <button type="submit" class="btn btn-primary" id="btnSendQuickChat">
+                <span>Enviar ➤</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUBTAB 2: CONFIGURAÇÕES E FLUXO DO CHATBOT -->
+      <div id="instanceSubSectionBot" class="instance-subsection hidden">
+        <!-- Barra de Ações Rápidas & Ferramentas -->
+        <div class="instance-tools-bar">
         <div class="tools-bar-left">
           <button class="btn btn-secondary btn-sm" onclick="openTemplatesModal()" title="Escolher um modelo pré-configurado por segmento de negócio">
             <span>✨ Modelos Prontos por Segmento</span>
@@ -556,11 +487,175 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- SUBTAB 3: DISPARO EM MASSA & LISTAS DA INSTÂNCIA -->
+    <div id="instanceSubSectionBroadcast" class="instance-subsection hidden">
+        <div class="broadcast-layout">
+          <!-- Left Column: Contact Lists Manager -->
+          <div class="broadcast-col-lists">
+            <div class="card-box">
+              <div class="box-header">
+                <div>
+                  <h3 class="box-title">📋 Listas de Contatos</h3>
+                  <p class="box-desc">Listas segmentadas para esta instância.</p>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="openCreateListModal()">
+                  <span>+ Nova Lista</span>
+                </button>
+              </div>
+
+              <div id="contactListsContainer" class="lists-group">
+                <!-- Rendered via JS -->
+              </div>
+
+              <div class="box-footer-actions">
+                <button class="btn btn-secondary btn-sm" onclick="exportListsBackup()" title="Baixar arquivo de backup JSON">
+                  <span>📥 Exportar Backup</span>
+                </button>
+                <label class="btn btn-secondary btn-sm" style="margin: 0; cursor: pointer;" title="Importar arquivo de backup JSON">
+                  <span>📤 Importar</span>
+                  <input type="file" id="importListsFile" accept=".json" style="display: none;" onchange="importListsBackup(event)">
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Campaign Dispatcher & Progress -->
+          <div class="broadcast-col-campaign">
+            <div class="card-box">
+              <div class="box-header">
+                <div>
+                  <h3 class="box-title">🚀 Disparo em Massa</h3>
+                  <p class="box-desc">Configure mensagem, variações anti-ban e dispare por esta instância.</p>
+                </div>
+                <div id="campaignStatusBadge" class="badge badge-init">Pronto</div>
+              </div>
+
+              <form id="broadcastForm" onsubmit="event.preventDefault(); submitBroadcastCampaign();">
+                <input type="hidden" id="broadcastSessionSelect" value="">
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="campaignNameInput">Nome da Campanha:</label>
+                    <input type="text" id="campaignNameInput" class="form-input" placeholder="Ex: Promoção Fim de Semana, Lançamento..." required>
+                  </div>
+                  <div class="form-group">
+                    <label for="broadcastListSelect">Lista de Destinatários:</label>
+                    <select id="broadcastListSelect" class="form-select" required onchange="onBroadcastListChanged()">
+                      <option value="">Selecione uma lista de contatos...</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="scheduleDateTimeInput">Agendar Envio (Opcional):</label>
+                  <input type="datetime-local" id="scheduleDateTimeInput" class="form-input">
+                  <span class="form-hint">Deixe em branco para disparar imediatamente agora.</span>
+                </div>
+
+                <!-- List Details Quick Banner -->
+                <div id="selectedListBanner" class="info-banner hidden">
+                  <span id="selectedListInfoText">0 contatos selecionados</span>
+                </div>
+
+                <!-- Message Composer -->
+                <div class="form-group">
+                  <div class="label-with-tags">
+                    <label for="broadcastMessageText">Mensagem:</label>
+                    <div class="tag-shortcuts">
+                      <button type="button" class="btn-tag" onclick="insertTag('{nome}')" title="Substitui pelo nome do contato">{nome}</button>
+                      <button type="button" class="btn-tag" onclick="insertTag('{numero}')" title="Substitui pelo número">{numero}</button>
+                      <button type="button" class="btn-tag" onclick="insertTag('{Olá|Oi|Tudo bem?}')" title="Alterna textos aleatoriamente (Spintax)">{Spintax}</button>
+                    </div>
+                  </div>
+                  <textarea id="broadcastMessageText" class="form-textarea" rows="5" placeholder="Olá {nome}! Tudo bem? Veja as novidades que preparamos para você..." required></textarea>
+                  <span class="form-hint">Dica anti-bloqueio: use Spintax <code>{Olá|Oi|E aí}</code> para enviar saudações variadas a cada número.</span>
+                </div>
+
+                <!-- Anti-ban Delay Settings -->
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="delayMinInput">Intervalo Mínimo (segundos):</label>
+                    <input type="number" id="delayMinInput" min="2" max="120" value="5" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="delayMaxInput">Intervalo Máximo (segundos):</label>
+                    <input type="number" id="delayMaxInput" min="3" max="180" value="12" class="form-input" required>
+                  </div>
+                </div>
+
+                <!-- Dispatch Action Buttons -->
+                <div class="broadcast-controls-bar">
+                  <button type="submit" id="btnStartBroadcast" class="btn btn-primary btn-lg">
+                    <span>🚀 Iniciar / Agendar</span>
+                  </button>
+                </div>
+              </form>
+
+              <!-- Real-time Progress & Metrics Panel -->
+              <div id="broadcastProgressSection" class="broadcast-progress-box hidden">
+                <div class="progress-stats-row">
+                  <div class="prog-stat">
+                    <span class="prog-stat-label">Total</span>
+                    <span class="prog-stat-val" id="progTotalCount">0</span>
+                  </div>
+                  <div class="prog-stat">
+                    <span class="prog-stat-label">Enviadas</span>
+                    <span class="prog-stat-val text-green" id="progSentCount">0</span>
+                  </div>
+                  <div class="prog-stat">
+                    <span class="prog-stat-label">Falhas</span>
+                    <span class="prog-stat-val text-red" id="progFailedCount">0</span>
+                  </div>
+                  <div class="prog-stat">
+                    <span class="prog-stat-label">Restantes</span>
+                    <span class="prog-stat-val text-dim" id="progRemainingCount">0</span>
+                  </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-bar-wrap">
+                  <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+
+                <!-- Live Execution Logs -->
+                <div class="live-log-container">
+                  <div class="log-header">
+                    <span id="liveLogTitle">Registro de Disparos ao Vivo</span>
+                    <button class="btn-clear-log" onclick="clearBroadcastLogs()">Limpar</button>
+                  </div>
+                  <div id="broadcastLogs" class="log-content">
+                    <div class="log-line">Aguardando início do disparo...</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Server Background Campaigns List -->
+              <div class="campaigns-history-section">
+                <div class="box-header" style="margin-top: 2rem; margin-bottom: 1rem;">
+                  <div>
+                    <h4 class="box-title">📊 Campanhas Desta Instância</h4>
+                    <p class="box-desc">Histórico e progresso em segundo plano gerenciados no SQLite.</p>
+                  </div>
+                  <button class="btn btn-secondary btn-sm" onclick="fetchServerCampaigns()">
+                    <span>🔄 Atualizar</span>
+                  </button>
+                </div>
+
+                <div id="serverCampaignsTableContainer" class="campaigns-table-wrap">
+                  <!-- Injetado dinamicamente via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
     </div>
 
     <!-- ==========================================
-         VIEW 4: DOCUMENTAÇÃO COMPLETA DA API (SWAGGER EMBEDDED)
+         VIEW 3: DOCUMENTAÇÃO COMPLETA DA API (SWAGGER EMBEDDED)
          ========================================== -->
     <div id="viewDocs" class="view-tab-content hidden">
       <div class="section-toolbar">
@@ -969,6 +1064,36 @@
 
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('templateSelectorModal')">Fechar</button>
+      </div>
+  <!-- MODAL: VISUALIZADOR DE STATUS / STORIES DO CONTATO -->
+  <div id="contactStatusModal" class="modal-backdrop hidden">
+    <div class="modal-card" style="max-width: 480px; padding: 0; overflow: hidden; background: #0c1317; border-color: rgba(37, 211, 102, 0.3);">
+      <div class="modal-header" style="padding: 1rem 1.25rem; background: #1f2c34; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div id="statusModalAvatar" class="chat-avatar" style="width: 38px; height: 38px;">👤</div>
+          <div>
+            <h3 id="statusModalTitle" style="font-size: 1rem; font-weight: 700; color: #fff; margin: 0;">Status de Contato</h3>
+            <span id="statusModalSubtitle" style="font-size: 0.75rem; color: var(--text-dim);">Postado nas últimas 24h</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close" onclick="closeModal('contactStatusModal')">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem; max-height: 75vh; overflow-y: auto;">
+        <!-- Indicador de barras de progresso de stories -->
+        <div id="statusStoriesBars" style="display: flex; gap: 4px; margin-bottom: 1rem;"></div>
+
+        <!-- Conteúdo do Status Atual -->
+        <div id="statusStoryViewer" style="text-align: center; min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <!-- Injetado dinamicamente via JS -->
+        </div>
+
+        <!-- Navegação entre status -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08);">
+          <button id="btnPrevStatus" class="btn btn-secondary btn-sm" onclick="navigateContactStatus(-1)">◀ Anterior</button>
+          <span id="statusCounterText" style="font-size: 0.8rem; color: var(--text-dim);">1 de 1</span>
+          <button id="btnNextStatus" class="btn btn-secondary btn-sm" onclick="navigateContactStatus(1)">Próximo ▶</button>
+        </div>
       </div>
     </div>
   </div>

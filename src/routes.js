@@ -105,6 +105,10 @@ sessionRouter.get('/terminateInactive', sessionController.terminateInactiveSessi
 sessionRouter.post('/terminateAll', sessionController.terminateAllSessions)
 sessionRouter.get('/terminateAll', sessionController.terminateAllSessions)
 
+// Configurações da sessão (Ativar/Desativar logs da instância)
+sessionRouter.get('/settings/:sessionId', middleware.sessionNameValidation, sessionController.getSessionSettingsHandler)
+sessionRouter.post('/settings/:sessionId', middleware.sessionNameValidation, sessionController.updateSessionSettingsHandler)
+
 /**
  * ================
  * CLIENT ENDPOINTS
@@ -227,6 +231,7 @@ messageRouter.post('/unstar/:sessionId', [middleware.sessionNameValidation, midd
 messageRouter.post('/edit/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.edit)
 messageRouter.post('/pin/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.pin)
 messageRouter.post('/unpin/:sessionId', [middleware.sessionNameValidation, middleware.sessionValidation], messageController.unpin)
+messageRouter.get('/logs/:sessionId', [middleware.sessionNameValidation], messageController.getLogs)
 
 /**
  * ================

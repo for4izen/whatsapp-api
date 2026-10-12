@@ -386,6 +386,35 @@ const listSessions = async (req, res) => {
   }
 }
 
+/**
+ * Retorna as preferências da sessão (logs, etc.)
+ */
+const getSessionSettingsHandler = async (req, res) => {
+  try {
+    const { getSessionSettings } = require('../database/messageLogger')
+    const settings = await getSessionSettings(req.params.sessionId)
+    res.json({ success: true, settings })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * Atualiza preferências da sessão (ativar/desativar logs)
+ */
+const updateSessionSettingsHandler = async (req, res) => {
+  try {
+    const { setSessionSettings } = require('../database/messageLogger')
+    const { logsEnabled } = req.body
+    const updated = await setSessionSettings(req.params.sessionId, {
+      logsEnabled: Boolean(logsEnabled)
+    })
+    res.json({ success: true, settings: updated })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
 module.exports = {
   listSessions,
   startSession,
@@ -395,5 +424,7 @@ module.exports = {
   restartSession,
   terminateSession,
   terminateInactiveSessions,
-  terminateAllSessions
+  terminateAllSessions,
+  getSessionSettingsHandler,
+  updateSessionSettingsHandler
 }

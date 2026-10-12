@@ -131,6 +131,24 @@ const sendMessage = async (req, res) => {
     }
 
     res.json({ success: true, message: messageOut })
+
+    // Salvar mídia enviada no SQLite e disco imediatamente caso contenha anexo
+    if (messageOut) {
+      try {
+        const { logMessage } = require('../database/messageLogger')
+        let outMedia = null
+        if (contentType === 'MessageMedia' && content?.data) {
+          outMedia = content
+        } else if (contentType === 'string' && options?.media?.data) {
+          outMedia = options.media
+        }
+        if (outMedia) {
+          logMessage(req.params.sessionId, messageOut, 'OUT', outMedia)
+        }
+      } catch (logErr) {
+        // Ignora erro no logger
+      }
+    }
   } catch (error) {
     console.log(error)
     sendErrorResponse(res, 500, error.message)
@@ -352,10 +370,25 @@ const getChats = async (req, res) => {
             ? window.require('WAWebCollections')?.Msg?.get(c.lastReceivedKey._serialized)
             : (c.msgs && c.msgs.length ? c.msgs.last() : null)
 
+          const contact = c.contact || {}
+          let pic = null
+          if (c.__x_profilePicThumb) pic = c.__x_profilePicThumb.eurl || c.__x_profilePicThumb.img
+          if (!pic && contact.__x_profilePicThumb) pic = contact.__x_profilePicThumb.eurl || contact.__x_profilePicThumb.img
+          if (!pic && contact.profilePicThumb) pic = contact.profilePicThumb.eurl || contact.profilePicThumb.img
+          if (!pic && c.profilePicThumb) pic = c.profilePicThumb.eurl || c.profilePicThumb.img
+
+          // Coletar chaves para diagnosticar
+          const debugKeys = {
+            cKeys: Object.keys(c).filter(k => k.toLowerCase().includes('pic') || k.toLowerCase().includes('img') || k.toLowerCase().includes('photo')),
+            contactKeys: Object.keys(contact).filter(k => k.toLowerCase().includes('pic') || k.toLowerCase().includes('img') || k.toLowerCase().includes('photo'))
+          }
+
           return {
             id: c.id || { _serialized: idStr },
             name: c.name || c.formattedTitle || (idStr.split('@')[0]) || 'Contato',
             isGroup: Boolean(c.isGroup || (idStr && idStr.endsWith('@g.us'))),
+            profilePic: pic,
+            debugKeys,
             unreadCount: c.unreadCount || 0,
             timestamp: c.t || c.timestamp || 0,
             archived: Boolean(c.archive || c.archived),
@@ -418,28 +451,64 @@ const getChats = async (req, res) => {
  * @throws {Error} - If there is an error retrieving the profile picture URL.
  */
 const getProfilePictureUrl = async (req, res) => {
-  /*
-    #swagger.requestBody = {
-      required: true,
-      schema: {
-        type: 'object',
-        properties: {
-          contactId: {
-            type: 'string',
-            description: 'The contact ID\'s of profile',
-            example: '6281288888888@c.us'
-          },
-        }
-      },
-    }
-  */
   try {
     const { contactId } = req.body
     const client = sessions.get(req.params.sessionId)
-    const result = await client.getProfilePicUrl(contactId)
-    res.json({ success: true, result })
+    if (!client || !client.pupPage) {
+      return res.json({ success: true, result: null })
+    }
+
+    // 1. Tentar obter direto via browser através de ProfilePicThumb
+    let picUrl = null
+    try {
+      picUrl = await client.pupPage.evaluate(async (cid) => {
+        try {
+          const WidFactory = window.require('WAWebWidFactory')
+          const chatWid = WidFactory.createWid(cid)
+          
+          // Verificar ProfilePicThumb na coleção
+          const collection = window.require('WAWebCollections')?.ProfilePicThumb
+          if (collection) {
+            let thumb = collection.get(cid)
+            if (!thumb && collection.find) {
+              thumb = await collection.find(chatWid).catch(() => null)
+            }
+            if (thumb) {
+              const url = thumb.eurl || thumb.img || thumb.imgFull
+              if (url) return url
+            }
+          }
+
+          // Tentar bridge se disponível
+          const bridge = window.require('WAWebContactProfilePicThumbBridge')
+          if (bridge && bridge.requestProfilePicFromServer) {
+            const chatObj = window.require('WAWebCollections')?.Chat?.get(chatWid)
+            if (chatObj) {
+              const res = await bridge.requestProfilePicFromServer(chatObj).catch(() => null)
+              if (res && (res.eurl || res.img)) return res.eurl || res.img
+            }
+          }
+        } catch (e) {
+          return null
+        }
+        return null
+      }, contactId)
+    } catch (e) {
+      // Ignora erro
+    }
+
+    // 2. Se não encontrou, tentar o método oficial da biblioteca
+    if (!picUrl && typeof client.getProfilePicUrl === 'function') {
+      try {
+        picUrl = await client.getProfilePicUrl(contactId)
+      } catch (err) {
+        // Ignora erro
+      }
+    }
+
+    res.json({ success: true, result: picUrl || null })
   } catch (error) {
-    sendErrorResponse(res, 500, error.message)
+    res.json({ success: true, result: null })
   }
 }
 

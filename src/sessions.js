@@ -5,6 +5,7 @@ const sessions = new Map()
 const { baseWebhookURL, sessionFolderPath, maxAttachmentSize, setMessagesAsSeen, webVersion, webVersionCacheType, recoverSessions } = require('./config')
 const { triggerWebhook, waitForNestedObject, checkIfEventisEnabled } = require('./utils')
 const typebotManager = require('./typebotManager')
+const { logMessage, updateMessageAck } = require('./database/messageLogger')
 
 
 // Function to validate if the session is ready
@@ -271,6 +272,9 @@ const initializeEvents = (client, sessionId) => {
   checkIfEventisEnabled('message')
     .then(_ => {
       client.on('message', async (message) => {
+        // Gravar mensagem recebida no SQLite
+        logMessage(sessionId, message, 'IN')
+
         triggerWebhook(sessionWebhook, sessionId, 'message', { message })
 
         // Processar fluxo de Typebot configurado para esta sessão
@@ -281,24 +285,25 @@ const initializeEvents = (client, sessionId) => {
         }
 
         if (message.hasMedia && (!message._data?.size || message._data.size < maxAttachmentSize)) {
-          // custom service event
-          checkIfEventisEnabled('media').then(_ => {
-            if (typeof message.downloadMedia === 'function') {
-              message.downloadMedia()
-                .then(messageMedia => {
-                  if (messageMedia) {
+          if (typeof message.downloadMedia === 'function') {
+            message.downloadMedia()
+              .then(messageMedia => {
+                if (messageMedia) {
+                  // Salva imediatamente no banco e disco com o buffer disponível
+                  logMessage(sessionId, message, 'IN', messageMedia)
+                  checkIfEventisEnabled('media').then(_ => {
                     triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
-                  }
-                })
-                .catch(e => {
-                  // Mídias efêmeras, stickers antigos ou expirados não precisam poluir o terminal
-                  const errStr = e?.message || e?.toString() || ''
-                  if (errStr && errStr !== 'r') {
-                    console.warn(`[Sessions] Aviso ao baixar mídia (${sessionId}):`, errStr)
-                  }
-                })
-            }
-          }).catch(() => {})
+                  }).catch(() => {})
+                }
+              })
+              .catch(e => {
+                // Mídias efêmeras ou expiradas
+                const errStr = e?.message || e?.toString() || ''
+                if (errStr && errStr !== 'r') {
+                  console.warn(`[Sessions] Aviso ao baixar mídia (${sessionId}):`, errStr)
+                }
+              })
+          }
         }
         if (setMessagesAsSeen) {
           try {
@@ -314,6 +319,9 @@ const initializeEvents = (client, sessionId) => {
   checkIfEventisEnabled('message_ack')
     .then(_ => {
       client.on('message_ack', async (message, ack) => {
+        // Atualizar status de entrega/leitura no SQLite
+        updateMessageAck(sessionId, message, ack)
+
         triggerWebhook(sessionWebhook, sessionId, 'message_ack', { message, ack })
         if (setMessagesAsSeen) {
           try {
@@ -329,6 +337,19 @@ const initializeEvents = (client, sessionId) => {
   checkIfEventisEnabled('message_create')
     .then(_ => {
       client.on('message_create', async (message) => {
+        // Registrar mensagens enviadas pela própria conta/bot/api
+        if (message.fromMe) {
+          logMessage(sessionId, message, 'OUT')
+
+          if (message.hasMedia && typeof message.downloadMedia === 'function') {
+            message.downloadMedia()
+              .then(media => {
+                if (media) logMessage(sessionId, message, 'OUT', media)
+              })
+              .catch(() => {})
+          }
+        }
+
         triggerWebhook(sessionWebhook, sessionId, 'message_create', { message })
         if (setMessagesAsSeen) {
           try {

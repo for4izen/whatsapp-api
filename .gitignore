@@ -20,3 +20,9 @@ coverage
 # Ignore other unnecessary files
 .DS_Store
 .vscode
+
+# Ignore SQLite local database and temp files
+data/*.sqlite*
+data/media/*
+!data/media/.gitkeep
+!data/.gitkeep

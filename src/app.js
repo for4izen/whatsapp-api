@@ -15,6 +15,14 @@ app.use(bodyParser.urlencoded({ limit: maxAttachmentSize + 1000000, extended: tr
 // Serve static assets for dashboard
 app.use('/dashboard', express.static(path.join(__dirname, '../public/dashboard')))
 
+// Serve media files (images, audio, documents) saved locally
+const mediaDir = path.join(__dirname, '../data/media')
+const fs = require('fs')
+if (!fs.existsSync(mediaDir)) {
+  fs.mkdirSync(mediaDir, { recursive: true })
+}
+app.use('/media', express.static(mediaDir))
+
 // API routes
 app.use('/', routes)
 

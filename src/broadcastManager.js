@@ -1,37 +1,62 @@
-const fs = require('fs')
-const path = require('path')
 const { sessions } = require('./sessions')
-
-const DATA_DIR = path.join(__dirname, '../data')
-const CAMPAIGNS_FILE = path.join(DATA_DIR, 'campaigns.json')
-
-// Garantir diretório data
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true })
-}
+const { run, query } = require('./database')
 
 let campaigns = []
 let isSchedulerRunning = false
 
-function loadCampaigns() {
+// Carregar campanhas do SQLite na inicialização
+async function loadCampaigns() {
   try {
-    if (fs.existsSync(CAMPAIGNS_FILE)) {
-      const content = fs.readFileSync(CAMPAIGNS_FILE, 'utf8')
-      campaigns = JSON.parse(content || '[]')
-    } else {
-      campaigns = []
-    }
+    const rows = await query('SELECT * FROM campaigns ORDER BY createdAt DESC')
+    campaigns = rows.map(r => ({
+      ...r,
+      contacts: JSON.parse(r.contacts || '[]'),
+      logs: JSON.parse(r.logs || '[]')
+    }))
   } catch (err) {
-    console.error('[BroadcastManager] Erro ao carregar campanhas:', err)
+    console.error('[BroadcastManager] Erro ao carregar campanhas do SQLite:', err.message)
     campaigns = []
   }
 }
 
-function saveCampaigns() {
+// Salvar/atualizar campanha no SQLite
+async function persistCampaign(camp) {
   try {
-    fs.writeFileSync(CAMPAIGNS_FILE, JSON.stringify(campaigns, null, 2), 'utf8')
+    await run(`
+      INSERT INTO campaigns (
+        id, name, sessionId, contacts, message, delayMin, delayMax,
+        scheduledFor, status, currentIndex, sentCount, failedCount,
+        totalCount, logs, createdAt, startedAt, finishedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        currentIndex = excluded.currentIndex,
+        sentCount = excluded.sentCount,
+        failedCount = excluded.failedCount,
+        logs = excluded.logs,
+        startedAt = excluded.startedAt,
+        finishedAt = excluded.finishedAt
+    `, [
+      camp.id,
+      camp.name,
+      camp.sessionId,
+      JSON.stringify(camp.contacts || []),
+      camp.message,
+      camp.delayMin || 5,
+      camp.delayMax || 12,
+      camp.scheduledFor || null,
+      camp.status || 'PENDING',
+      camp.currentIndex || 0,
+      camp.sentCount || 0,
+      camp.failedCount || 0,
+      camp.totalCount || (camp.contacts ? camp.contacts.length : 0),
+      JSON.stringify(camp.logs || []),
+      camp.createdAt || new Date().toISOString(),
+      camp.startedAt || null,
+      camp.finishedAt || null
+    ])
   } catch (err) {
-    console.error('[BroadcastManager] Erro ao salvar campanhas:', err)
+    console.error('[BroadcastManager] Erro ao persistir campanha no SQLite:', err.message)
   }
 }
 
@@ -102,10 +127,9 @@ function createCampaign({ name, sessionId, contacts, message, delayMin = 5, dela
   }
 
   campaigns.unshift(newCamp)
-  saveCampaigns()
+  persistCampaign(newCamp)
 
   if (!isScheduled) {
-    // Iniciar imediatamente em background
     startCampaignExecution(id)
   }
 
@@ -134,7 +158,7 @@ function cancelCampaign(id) {
     message: 'Campanha cancelada pelo usuário.',
     type: 'error'
   })
-  saveCampaigns()
+  persistCampaign(camp)
   return true
 }
 
@@ -148,7 +172,7 @@ function pauseCampaign(id) {
     message: 'Campanha pausada pelo usuário.',
     type: 'info'
   })
-  saveCampaigns()
+  persistCampaign(camp)
   return true
 }
 
@@ -162,7 +186,7 @@ function resumeCampaign(id) {
     message: 'Campanha retomada.',
     type: 'info'
   })
-  saveCampaigns()
+  persistCampaign(camp)
   startCampaignExecution(id)
   return true
 }
@@ -173,7 +197,9 @@ function deleteCampaign(id) {
 
   campaigns[idx].status = 'CANCELLED'
   campaigns.splice(idx, 1)
-  saveCampaigns()
+  run('DELETE FROM campaigns WHERE id = ?', [id]).catch(err => {
+    console.error('[BroadcastManager] Erro ao deletar campanha do SQLite:', err.message)
+  })
   return true
 }
 
@@ -188,15 +214,13 @@ async function startCampaignExecution(campaignId) {
   if (!camp.startedAt) {
     camp.startedAt = new Date().toISOString()
   }
-  saveCampaigns()
+  persistCampaign(camp)
 
-  // Executa em segundo plano sem bloquear a requisição HTTP
   setImmediate(async () => {
     while (camp.status === 'RUNNING' && camp.currentIndex < camp.contacts.length) {
       const contactItem = camp.contacts[camp.currentIndex]
       const client = sessions.get(camp.sessionId)
 
-      // Verificar se o cliente ainda está conectado
       if (!client) {
         camp.logs.push({
           time: new Date().toISOString(),
@@ -204,7 +228,7 @@ async function startCampaignExecution(campaignId) {
           type: 'error'
         })
         camp.status = 'PAUSED'
-        saveCampaigns()
+        persistCampaign(camp)
         break
       }
 
@@ -233,9 +257,8 @@ async function startCampaignExecution(campaignId) {
       }
 
       camp.currentIndex++
-      saveCampaigns()
+      persistCampaign(camp)
 
-      // Delay aleatório se houver mais mensagens e ainda estiver rodando
       if (camp.status === 'RUNNING' && camp.currentIndex < camp.contacts.length) {
         const min = Math.max(2, camp.delayMin || 5)
         const max = Math.max(min, camp.delayMax || 12)
@@ -252,7 +275,7 @@ async function startCampaignExecution(campaignId) {
         message: `🏁 Campanha concluída com sucesso! Total: ${camp.totalCount} | Enviadas: ${camp.sentCount} | Falhas: ${camp.failedCount}`,
         type: 'info'
       })
-      saveCampaigns()
+      persistCampaign(camp)
     }
   })
 }
@@ -280,10 +303,9 @@ function initScheduler() {
         }
       }
     })
-  }, 20000) // Verifica a cada 20 segundos
+  }, 20000)
 }
 
-// Inicializar scheduler automaticamente
 initScheduler()
 
 module.exports = {

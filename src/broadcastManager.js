@@ -131,6 +131,7 @@ function createCampaign({
   delayMax = 12,
   scheduledFor = null,
   mediaUrl = null,
+  mediaUrls = null,
   batchSize = 0,
   batchWaitSec = 0
 }) {
@@ -148,13 +149,23 @@ function createCampaign({
     error: null
   })).filter(c => c.number.length >= 8)
 
+  // Normalizar lista de URLs de mídia (suporta array, string com quebras de linha ou vírgula)
+  let parsedMediaUrls = []
+  if (Array.isArray(mediaUrls)) {
+    parsedMediaUrls = mediaUrls.map(u => String(u).trim()).filter(Boolean)
+  } else if (typeof mediaUrls === 'string' && mediaUrls.trim()) {
+    parsedMediaUrls = mediaUrls.split(/[\n,]+/).map(u => u.trim()).filter(Boolean)
+  } else if (mediaUrl) {
+    parsedMediaUrls = String(mediaUrl).split(/[\n,]+/).map(u => u.trim()).filter(Boolean)
+  }
+
   const newCamp = {
     id,
     name: name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
     sessionId,
     contacts: formattedContacts,
     message: message || '',
-    mediaUrl: mediaUrl ? String(mediaUrl).trim() : null,
+    mediaUrl: parsedMediaUrls.length > 0 ? JSON.stringify(parsedMediaUrls) : null,
     delayMin: parseInt(delayMin) || 5,
     delayMax: parseInt(delayMax) || 12,
     batchSize: Math.max(0, parseInt(batchSize) || 0),
@@ -166,7 +177,7 @@ function createCampaign({
     failedCount: 0,
     totalCount: formattedContacts.length,
     logs: [
-      { time: now, message: `Campanha criada com ${formattedContacts.length} contatos válidos.`, type: 'info' }
+      { time: now, message: `Campanha criada com ${formattedContacts.length} contatos válidos.${parsedMediaUrls.length > 0 ? ` (${parsedMediaUrls.length} mídias anexadas)` : ''}`, type: 'info' }
     ],
     createdAt: now,
     startedAt: null,
@@ -264,24 +275,41 @@ async function startCampaignExecution(campaignId) {
   persistCampaign(camp)
 
   setImmediate(async () => {
-    // Pré-carregar mídia caso exista URL para evitar baixar repetidamente
-    let cachedMedia = null
+    // Obter lista de URLs de mídia (compatível com JSON array ou URL simples antiga)
+    let mediaUrlsList = []
     if (camp.mediaUrl) {
       try {
-        camp.logs.push({
-          time: new Date().toISOString(),
-          message: `Baixando mídia anexada de: ${camp.mediaUrl}...`,
-          type: 'info'
-        })
-        persistCampaign(camp)
-        cachedMedia = await MessageMedia.fromUrl(camp.mediaUrl, { unsafeMime: true })
-      } catch (err) {
-        camp.logs.push({
-          time: new Date().toISOString(),
-          message: `⚠️ Erro ao baixar mídia (${err.message}). Disparos continuarão apenas com texto.`,
-          type: 'error'
-        })
-        persistCampaign(camp)
+        const parsed = JSON.parse(camp.mediaUrl)
+        if (Array.isArray(parsed)) mediaUrlsList = parsed
+        else if (typeof parsed === 'string') mediaUrlsList = [parsed]
+      } catch (_) {
+        mediaUrlsList = camp.mediaUrl.split(/[\n,]+/).map(u => u.trim()).filter(Boolean)
+      }
+    }
+
+    // Pré-carregar todas as mídias caso existam para evitar download repetido por contato
+    const cachedMediaList = []
+    if (mediaUrlsList.length > 0) {
+      camp.logs.push({
+        time: new Date().toISOString(),
+        message: `Baixando ${mediaUrlsList.length} mídia(s) anexada(s)...`,
+        type: 'info'
+      })
+      persistCampaign(camp)
+
+      for (let idx = 0; idx < mediaUrlsList.length; idx++) {
+        const mUrl = mediaUrlsList[idx]
+        try {
+          const media = await MessageMedia.fromUrl(mUrl, { unsafeMime: true })
+          cachedMediaList.push(media)
+        } catch (err) {
+          camp.logs.push({
+            time: new Date().toISOString(),
+            message: `⚠️ Erro ao baixar mídia ${idx + 1} (${mUrl}): ${err.message}`,
+            type: 'error'
+          })
+          persistCampaign(camp)
+        }
       }
     }
 
@@ -306,9 +334,19 @@ async function startCampaignExecution(campaignId) {
       const content = personalizeMessage(camp.message, contactItem)
 
       try {
-        if (cachedMedia) {
-          // Enviar com mídia e legenda personalizada
-          await client.sendMessage(formattedChatId, cachedMedia, { caption: content || undefined })
+        if (cachedMediaList.length > 0) {
+          // Enviar cada mídia sequencialmente
+          for (let mIdx = 0; mIdx < cachedMediaList.length; mIdx++) {
+            const mediaObj = cachedMediaList[mIdx]
+            // Apenas a primeira mídia leva o texto como legenda (ou se não houver legenda, vai sem)
+            const caption = mIdx === 0 ? (content || undefined) : undefined
+            await client.sendMessage(formattedChatId, mediaObj, { caption })
+
+            // Pequeno intervalo seguro de 1.5s entre mídias enviadas ao mesmo contato
+            if (mIdx < cachedMediaList.length - 1) {
+              await sleep(1500)
+            }
+          }
         } else {
           // Enviar somente texto
           await client.sendMessage(formattedChatId, content)
@@ -319,7 +357,7 @@ async function startCampaignExecution(campaignId) {
         camp.sentCount++
         camp.logs.push({
           time: new Date().toISOString(),
-          message: `✓ [${camp.currentIndex + 1}/${camp.totalCount}] Enviado para ${contactItem.number} (${contactItem.name || 'Sem nome'})`,
+          message: `✓ [${camp.currentIndex + 1}/${camp.totalCount}] Enviado para ${contactItem.number} (${contactItem.name || 'Sem nome'})${cachedMediaList.length > 1 ? ` com ${cachedMediaList.length} mídias` : ''}`,
           type: 'success'
         })
       } catch (err) {

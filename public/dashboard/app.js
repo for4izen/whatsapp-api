@@ -645,6 +645,82 @@ function initContactListsModule() {
   if (messageInput) messageInput.addEventListener('input', saveDraft)
   if (minDelayInput) minDelayInput.addEventListener('change', saveDraft)
   if (maxDelayInput) maxDelayInput.addEventListener('change', saveDraft)
+
+  // Inicializa a primeira linha de mídia vazia se ainda não houver
+  initBroadcastMediaRows()
+}
+
+/**
+ * ========================================================
+ * GERENCIADOR DE MÍDIAS DINÂMICAS (+) NO DISPARO
+ * ========================================================
+ */
+function initBroadcastMediaRows() {
+  const container = document.getElementById('broadcastMediaListContainer')
+  if (!container) return
+  if (container.children.length === 0) {
+    addBroadcastMediaRow()
+  }
+}
+
+function addBroadcastMediaRow(value = '') {
+  const container = document.getElementById('broadcastMediaListContainer')
+  if (!container) return
+
+  const rowId = 'media_row_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)
+  const row = document.createElement('div')
+  row.className = 'media-row-item'
+  row.id = rowId
+
+  const currentCount = container.children.length + 1
+  row.innerHTML = `
+    <span class="media-item-idx">#${currentCount}</span>
+    <input type="text" class="form-input broadcast-media-input" placeholder="https://exemplo.com/arquivo.jpg ou documento.pdf" value="${escapeHtml(value)}">
+    <button type="button" class="btn btn-danger-outline btn-xs" onclick="removeBroadcastMediaRow('${rowId}')" title="Remover esta mídia">
+      🗑️
+    </button>
+  `
+  container.appendChild(row)
+  updateMediaRowIndexes()
+}
+
+function removeBroadcastMediaRow(rowId) {
+  const container = document.getElementById('broadcastMediaListContainer')
+  if (!container) return
+  const row = document.getElementById(rowId)
+  if (row) {
+    row.remove()
+    updateMediaRowIndexes()
+  }
+}
+
+function updateMediaRowIndexes() {
+  const container = document.getElementById('broadcastMediaListContainer')
+  if (!container) return
+  const rows = container.querySelectorAll('.media-row-item')
+  rows.forEach((row, idx) => {
+    const badge = row.querySelector('.media-item-idx')
+    if (badge) badge.textContent = `#${idx + 1}`
+  })
+}
+
+function getBroadcastMediaUrls() {
+  const container = document.getElementById('broadcastMediaListContainer')
+  if (!container) return []
+  const inputs = container.querySelectorAll('.broadcast-media-input')
+  const urls = []
+  inputs.forEach(inp => {
+    const val = inp.value.trim()
+    if (val) urls.push(val)
+  })
+  return urls
+}
+
+function clearBroadcastMediaInputs() {
+  const container = document.getElementById('broadcastMediaListContainer')
+  if (!container) return
+  container.innerHTML = ''
+  addBroadcastMediaRow()
 }
 
 function restoreDraftMessage() {
@@ -1093,7 +1169,7 @@ async function submitBroadcastCampaign() {
   const sessionId = document.getElementById('broadcastSessionSelect').value
   const listId = document.getElementById('broadcastListSelect').value
   const template = document.getElementById('broadcastMessageText').value.trim()
-  const mediaUrl = document.getElementById('broadcastMediaUrl') ? document.getElementById('broadcastMediaUrl').value.trim() : ''
+  const mediaUrls = getBroadcastMediaUrls()
   const delayMin = Math.max(2, parseInt(document.getElementById('delayMinInput').value) || 5)
   const delayMax = Math.max(delayMin, parseInt(document.getElementById('delayMaxInput').value) || 12)
   const batchSize = document.getElementById('batchSizeInput') ? Math.max(0, parseInt(document.getElementById('batchSizeInput').value) || 0) : 0
@@ -1115,8 +1191,8 @@ async function submitBroadcastCampaign() {
     return
   }
 
-  if (!template && !mediaUrl) {
-    showToast('Digite a mensagem ou informe a URL de uma mídia para envio.')
+  if (!template && mediaUrls.length === 0) {
+    showToast('Digite a mensagem ou adicione ao menos uma mídia para envio.')
     return
   }
 
@@ -1158,7 +1234,7 @@ async function submitBroadcastCampaign() {
         sessionId,
         contacts: list.contacts,
         message: template,
-        mediaUrl: mediaUrl || null,
+        mediaUrls: mediaUrls.length > 0 ? mediaUrls : null,
         delayMin,
         delayMax,
         batchSize,
@@ -1176,7 +1252,7 @@ async function submitBroadcastCampaign() {
     showToast(json.message || 'Campanha salva no servidor!')
     document.getElementById('campaignNameInput').value = ''
     document.getElementById('scheduleDateTimeInput').value = ''
-    if (document.getElementById('broadcastMediaUrl')) document.getElementById('broadcastMediaUrl').value = ''
+    clearBroadcastMediaInputs()
     
     // Atualizar tabela e focar na campanha criada
     await fetchServerCampaigns()
@@ -1541,6 +1617,7 @@ function switchInstanceSubTab(subTab) {
     refreshBroadcastSelects()
     renderContactLists()
     fetchServerCampaigns()
+    initBroadcastMediaRows()
   }
 }
 

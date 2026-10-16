@@ -569,15 +569,22 @@
                       <button type="button" class="btn-tag" onclick="insertTag('{Olá|Oi|Tudo bem?}')" title="Alterna textos aleatoriamente (Spintax)">{Spintax}</button>
                     </div>
                   </div>
-                  <textarea id="broadcastMessageText" class="form-textarea" rows="5" placeholder="Olá {nome}! Tudo bem? Veja as novidades que preparamos para você..." required></textarea>
+                  <textarea id="broadcastMessageText" class="form-textarea" rows="5" placeholder="Olá {nome}! Tudo bem? Veja as novidades que preparamos para você..."></textarea>
                   <span class="form-hint">Dica anti-bloqueio: use Spintax <code>{Olá|Oi|E aí}</code> para enviar saudações variadas a cada número.</span>
                 </div>
 
-                <!-- Media / Attachment (Optional) -->
+                <!-- Media / Attachments (Dynamic + List) -->
                 <div class="form-group">
-                  <label for="broadcastMediaUrl">URL da Mídia / Anexo (Opcional):</label>
-                  <input type="url" id="broadcastMediaUrl" class="form-input" placeholder="https://exemplo.com/imagem.jpg ou documento.pdf">
-                  <span class="form-hint">Se preenchido, a mensagem acima será enviada como legenda da imagem/vídeo/documento.</span>
+                  <div class="media-header-row">
+                    <label style="margin-bottom: 0;">Mídias / Anexos (Opcional):</label>
+                    <button type="button" class="btn btn-secondary btn-xs" onclick="addBroadcastMediaRow()">
+                      ➕ Adicionar Mídia
+                    </button>
+                  </div>
+                  <div id="broadcastMediaListContainer" class="media-inputs-container">
+                    <!-- Gerado dinamicamente via JS -->
+                  </div>
+                  <span class="form-hint">Se adicionar mídias, a mensagem acima será a legenda da primeira mídia e as demais serão enviadas sequencialmente em seguida.</span>
                 </div>
 
                 <!-- Anti-ban Delay Settings -->

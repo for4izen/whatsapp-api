@@ -6,7 +6,7 @@ const { sendErrorResponse } = require('../utils')
  */
 const createCampaign = (req, res) => {
   try {
-    const { name, sessionId, contacts, message, delayMin, delayMax, scheduledFor, mediaUrl, batchSize, batchWaitSec } = req.body
+    const { name, sessionId, contacts, message, delayMin, delayMax, scheduledFor, mediaUrl, mediaUrls, batchSize, batchWaitSec } = req.body
 
     if (!sessionId) {
       return sendErrorResponse(res, 400, 'sessionId é obrigatório.')
@@ -14,8 +14,8 @@ const createCampaign = (req, res) => {
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return sendErrorResponse(res, 400, 'Lista de contatos é obrigatória e deve conter ao menos um número.')
     }
-    if ((!message || typeof message !== 'string') && !mediaUrl) {
-      return sendErrorResponse(res, 400, 'Mensagem ou URL de mídia é obrigatória.')
+    if ((!message || typeof message !== 'string') && !mediaUrl && !mediaUrls) {
+      return sendErrorResponse(res, 400, 'Mensagem ou URL(s) de mídia é obrigatória.')
     }
 
     const campaign = broadcastManager.createCampaign({
@@ -27,6 +27,7 @@ const createCampaign = (req, res) => {
       delayMax,
       scheduledFor,
       mediaUrl,
+      mediaUrls,
       batchSize,
       batchWaitSec
     })

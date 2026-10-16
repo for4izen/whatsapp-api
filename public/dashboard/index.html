@@ -848,18 +848,30 @@
   <div id="newSessionModal" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 class="modal-title">Criar Nova Sessão</h3>
+        <div>
+          <h3 class="modal-title">Nova Instância</h3>
+          <span class="modal-subtitle">Conecte um novo número de WhatsApp ao sistema</span>
+        </div>
         <button class="modal-close" onclick="closeModal('newSessionModal')">&times;</button>
       </div>
       <form id="newSessionForm">
         <div class="form-group">
-          <label for="sessionIdInput">Identificador da Sessão (Session ID)</label>
-          <input type="text" id="sessionIdInput" placeholder="Ex: comercial, suporte, bot-01" required pattern="^[a-zA-Z0-9_-]+$" title="Apenas letras, números, hífens ou underlines">
-          <span class="form-hint">Use um nome único, sem espaços ou caracteres especiais.</span>
+          <div class="label-with-tags">
+            <label for="sessionIdInput" style="margin-bottom: 0;">Identificador da Instância:</label>
+            <div class="tag-shortcuts">
+              <button type="button" class="btn-tag" onclick="setSessionIdSuggestion('comercial')">comercial</button>
+              <button type="button" class="btn-tag" onclick="setSessionIdSuggestion('suporte')">suporte</button>
+              <button type="button" class="btn-tag" onclick="setSessionIdSuggestion('atendimento')">atendimento</button>
+            </div>
+          </div>
+          <input type="text" id="sessionIdInput" class="form-input" placeholder="Ex: comercial, suporte, vendas" required autocomplete="off" spellcheck="false">
+          <span class="form-hint">Espaços e acentos são convertidos automaticamente para letras minúsculas e hífens.</span>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeModal('newSessionModal')">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="btnSubmitNewSession">Iniciar e Conectar</button>
+          <button type="submit" class="btn btn-primary" id="btnSubmitNewSession">
+            <span>🚀 Iniciar e Conectar</span>
+          </button>
         </div>
       </form>
     </div>

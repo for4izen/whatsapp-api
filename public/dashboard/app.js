@@ -26,8 +26,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('newSessionForm').addEventListener('submit', async (e) => {
     e.preventDefault()
-    const sessionId = document.getElementById('sessionIdInput').value.trim()
-    if (!sessionId) return
+    const input = document.getElementById('sessionIdInput')
+    let sessionId = input.value.trim()
+    // Higienizar automaticamente: converte para minúsculas, remove acentos e substitui espaços por hífens
+    sessionId = sessionId
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .toLowerCase()
+
+    if (!sessionId) {
+      showToast('Por favor, informe um identificador válido para a instância.')
+      input.focus()
+      return
+    }
     closeModal('newSessionModal')
     await startAndConnectSession(sessionId)
   })
@@ -242,11 +254,35 @@ function showConfirmModal({ title = 'Confirmar Ação', message = 'Deseja realme
 }
 
 // Modal Handlers
-function openNewSessionModal() {
+function setSessionIdSuggestion(suggestion) {
+  const input = document.getElementById('sessionIdInput')
+  if (input) {
+    input.value = suggestion
+    input.focus()
+  }
+}
 
-  document.getElementById('sessionIdInput').value = ''
+function openNewSessionModal() {
+  const input = document.getElementById('sessionIdInput')
+  if (input) {
+    input.value = ''
+    // Auto-formatação em tempo real para ajudar o usuário
+    input.oninput = () => {
+      const start = input.selectionStart
+      const original = input.value
+      const sanitized = original
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .toLowerCase()
+      if (original !== sanitized) {
+        input.value = sanitized
+        input.setSelectionRange(start, start)
+      }
+    }
+  }
   document.getElementById('newSessionModal').classList.remove('hidden')
-  document.getElementById('sessionIdInput').focus()
+  setTimeout(() => { if (input) input.focus() }, 50)
 }
 
 function closeModal(modalId) {

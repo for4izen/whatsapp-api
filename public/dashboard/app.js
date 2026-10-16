@@ -661,32 +661,52 @@ function restoreDraftMessage() {
   }
 }
 
-function loadContactListsFromStorage() {
+async function loadContactListsFromStorage() {
+  try {
+    const res = await apiRequest('/broadcast/lists')
+    if (res.ok) {
+      const json = await res.json()
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        contactLists = json.data
+        renderContactLists()
+        refreshBroadcastSelects()
+        return
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao buscar listas do servidor, tentando fallback local:', e)
+  }
+
+  // Fallback e migração inicial: se houver listas no localStorage, migra para o servidor
   try {
     const raw = localStorage.getItem(STORAGE_LISTS_KEY)
     if (raw) {
-      contactLists = JSON.parse(raw)
-    } else {
-      // Default example list for immediate testing
-      contactLists = [
-        {
-          id: 'list_default_1',
-          name: 'Clientes VIP (Exemplo)',
-          sessionScope: '*', // Global
-          createdAt: new Date().toISOString(),
-          contacts: [
-            { number: '5511999999999', name: 'Exemplo Cliente' }
-          ]
+      const localLists = JSON.parse(raw)
+      if (Array.isArray(localLists) && localLists.length > 0) {
+        contactLists = localLists
+        renderContactLists()
+        refreshBroadcastSelects()
+
+        // Sincronizar listas existentes do localStorage para o SQLite do servidor
+        for (const l of localLists) {
+          apiRequest('/broadcast/lists/save', {
+            method: 'POST',
+            body: JSON.stringify(l)
+          }).catch(() => {})
         }
-      ]
-      saveContactListsToStorage()
+        return
+      }
     }
   } catch (e) {
-    contactLists = []
+    console.error('Erro ao ler localStorage de listas:', e)
   }
+
+  renderContactLists()
+  refreshBroadcastSelects()
 }
 
 function saveContactListsToStorage() {
+  // Mantém cópia local de cache
   localStorage.setItem(STORAGE_LISTS_KEY, JSON.stringify(contactLists))
   renderContactLists()
   refreshBroadcastSelects()
@@ -893,7 +913,7 @@ function editContactList(id) {
   document.getElementById('manageListModal').classList.remove('hidden')
 }
 
-function saveContactList() {
+async function saveContactList() {
   const editId = document.getElementById('editListId').value
   const name = document.getElementById('listNameInput').value.trim()
   const sessionScope = document.getElementById('listSessionSelect').value
@@ -910,6 +930,36 @@ function saveContactList() {
     return
   }
 
+  const payload = {
+    id: editId || undefined,
+    name,
+    sessionScope,
+    contacts
+  }
+
+  try {
+    const res = await apiRequest('/broadcast/lists/save', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    const json = await res.json()
+    if (res.ok && json.success && json.data) {
+      if (editId) {
+        const idx = contactLists.findIndex(l => l.id === editId)
+        if (idx !== -1) contactLists[idx] = json.data
+      } else {
+        contactLists.unshift(json.data)
+      }
+      saveContactListsToStorage()
+      showToast(editId ? 'Lista atualizada com sucesso no banco de dados!' : `Lista "${name}" salva no servidor com ${contacts.length} contatos!`)
+      closeModal('manageListModal')
+      return
+    }
+  } catch (err) {
+    console.warn('Erro ao salvar lista no servidor, salvando localmente:', err)
+  }
+
+  // Fallback caso a API falhe
   if (editId) {
     const idx = contactLists.findIndex(l => l.id === editId)
     if (idx !== -1) {
@@ -947,6 +997,12 @@ async function deleteContactList(id) {
     icon: '🗑️'
   })
   if (!confirmed) return
+
+  try {
+    await apiRequest(`/broadcast/lists/${id}`, { method: 'DELETE' })
+  } catch (err) {
+    console.warn('Erro ao excluir no servidor:', err)
+  }
 
   contactLists = contactLists.filter(l => l.id !== id)
   saveContactListsToStorage()

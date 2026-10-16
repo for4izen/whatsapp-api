@@ -400,6 +400,64 @@ function initScheduler() {
 
 initScheduler()
 
+/**
+ * ==========================================
+ * GERENCIADOR DE LISTAS DE CONTATOS NO SQLITE
+ * ==========================================
+ */
+async function getContactLists() {
+  try {
+    const rows = await query('SELECT * FROM contact_lists ORDER BY updatedAt DESC, createdAt DESC')
+    return rows.map(r => ({
+      ...r,
+      contacts: JSON.parse(r.contacts || '[]')
+    }))
+  } catch (err) {
+    console.error('[BroadcastManager] Erro ao buscar listas do SQLite:', err.message)
+    return []
+  }
+}
+
+async function saveContactList({ id, name, sessionScope = '*', contacts = [] }) {
+  const now = new Date().toISOString()
+  const listId = id || ('list_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6))
+
+  const formattedContacts = contacts.map(c => ({
+    number: sanitizePhoneNumber(c.number),
+    name: c.name || ''
+  })).filter(c => c.number.length >= 8)
+
+  await run(`
+    INSERT INTO contact_lists (id, name, sessionScope, contacts, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = excluded.name,
+      sessionScope = excluded.sessionScope,
+      contacts = excluded.contacts,
+      updatedAt = excluded.updatedAt
+  `, [
+    listId,
+    name,
+    sessionScope || '*',
+    JSON.stringify(formattedContacts),
+    now,
+    now
+  ])
+
+  return {
+    id: listId,
+    name,
+    sessionScope: sessionScope || '*',
+    contacts: formattedContacts,
+    updatedAt: now
+  }
+}
+
+async function deleteContactList(id) {
+  const res = await run('DELETE FROM contact_lists WHERE id = ?', [id])
+  return res.changes > 0
+}
+
 module.exports = {
   createCampaign,
   listCampaigns,
@@ -407,5 +465,8 @@ module.exports = {
   cancelCampaign,
   pauseCampaign,
   resumeCampaign,
-  deleteCampaign
+  deleteCampaign,
+  getContactLists,
+  saveContactList,
+  deleteContactList
 }

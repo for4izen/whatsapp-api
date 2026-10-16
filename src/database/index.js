@@ -79,6 +79,18 @@ db.serialize(() => {
   db.run('ALTER TABLE campaigns ADD COLUMN batchWaitSec INTEGER DEFAULT 0;', () => {})
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS contact_lists (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      sessionScope TEXT DEFAULT '*',
+      contacts TEXT NOT NULL,
+      createdAt TEXT,
+      updatedAt TEXT
+    )
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_contact_lists_scope ON contact_lists(sessionScope);')
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS typebot_flows (
       sessionId TEXT PRIMARY KEY,
       flowData TEXT NOT NULL,

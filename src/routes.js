@@ -38,6 +38,11 @@ const broadcastRouter = express.Router()
 broadcastRouter.use(middleware.apikey)
 routes.use('/broadcast', broadcastRouter)
 
+// Rotas de listas de contatos (banco de dados)
+broadcastRouter.get('/lists', broadcastController.getContactLists)
+broadcastRouter.post('/lists/save', broadcastController.saveContactList)
+broadcastRouter.delete('/lists/:id', broadcastController.deleteContactList)
+
 broadcastRouter.post('/create', broadcastController.createCampaign)
 broadcastRouter.get('/list', broadcastController.listCampaigns)
 broadcastRouter.get('/:id', broadcastController.getCampaign)

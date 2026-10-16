@@ -128,6 +128,49 @@ const deleteCampaign = (req, res) => {
   }
 }
 
+/**
+ * ========================================================
+ * ENDPOINTS DE GERENCIAMENTO DE LISTAS DE CONTATOS NO BD
+ * ========================================================
+ */
+const getContactLists = async (req, res) => {
+  try {
+    const lists = await broadcastManager.getContactLists()
+    res.json({ success: true, data: lists })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+const saveContactList = async (req, res) => {
+  try {
+    const { id, name, sessionScope, contacts } = req.body
+    if (!name || typeof name !== 'string') {
+      return sendErrorResponse(res, 400, 'Nome da lista é obrigatório.')
+    }
+    if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+      return sendErrorResponse(res, 400, 'Lista deve conter ao menos um contato.')
+    }
+
+    const saved = await broadcastManager.saveContactList({ id, name, sessionScope, contacts })
+    res.json({ success: true, message: 'Lista salva com sucesso!', data: saved })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+const deleteContactList = async (req, res) => {
+  try {
+    const success = await broadcastManager.deleteContactList(req.params.id)
+    if (!success) {
+      return sendErrorResponse(res, 404, 'Lista não encontrada.')
+    }
+    res.json({ success: true, message: 'Lista excluída com sucesso.' })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
 module.exports = {
   createCampaign,
   listCampaigns,
@@ -135,5 +178,8 @@ module.exports = {
   pauseCampaign,
   resumeCampaign,
   cancelCampaign,
-  deleteCampaign
+  deleteCampaign,
+  getContactLists,
+  saveContactList,
+  deleteContactList
 }

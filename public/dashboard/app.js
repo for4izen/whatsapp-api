@@ -1037,8 +1037,11 @@ async function submitBroadcastCampaign() {
   const sessionId = document.getElementById('broadcastSessionSelect').value
   const listId = document.getElementById('broadcastListSelect').value
   const template = document.getElementById('broadcastMessageText').value.trim()
+  const mediaUrl = document.getElementById('broadcastMediaUrl') ? document.getElementById('broadcastMediaUrl').value.trim() : ''
   const delayMin = Math.max(2, parseInt(document.getElementById('delayMinInput').value) || 5)
   const delayMax = Math.max(delayMin, parseInt(document.getElementById('delayMaxInput').value) || 12)
+  const batchSize = document.getElementById('batchSizeInput') ? Math.max(0, parseInt(document.getElementById('batchSizeInput').value) || 0) : 0
+  const batchWaitSec = document.getElementById('batchWaitSecInput') ? Math.max(0, parseInt(document.getElementById('batchWaitSecInput').value) || 0) : 0
   const scheduleInput = document.getElementById('scheduleDateTimeInput').value
 
   if (!name) {
@@ -1056,8 +1059,8 @@ async function submitBroadcastCampaign() {
     return
   }
 
-  if (!template) {
-    showToast('Digite a mensagem a ser enviada.')
+  if (!template && !mediaUrl) {
+    showToast('Digite a mensagem ou informe a URL de uma mídia para envio.')
     return
   }
 
@@ -1099,8 +1102,11 @@ async function submitBroadcastCampaign() {
         sessionId,
         contacts: list.contacts,
         message: template,
+        mediaUrl: mediaUrl || null,
         delayMin,
         delayMax,
+        batchSize,
+        batchWaitSec,
         scheduledFor
       })
     })
@@ -1114,6 +1120,7 @@ async function submitBroadcastCampaign() {
     showToast(json.message || 'Campanha salva no servidor!')
     document.getElementById('campaignNameInput').value = ''
     document.getElementById('scheduleDateTimeInput').value = ''
+    if (document.getElementById('broadcastMediaUrl')) document.getElementById('broadcastMediaUrl').value = ''
     
     // Atualizar tabela e focar na campanha criada
     await fetchServerCampaigns()

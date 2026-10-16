@@ -1,10 +1,19 @@
 const { sessions } = require('./sessions')
 const { run, query } = require('./database')
+const { MessageMedia } = require('whatsapp-web.js')
 
 let campaigns = []
 let isSchedulerRunning = false
 
-// Carregar campanhas do SQLite na inicialização
+// Sanitizar e padronizar número do WhatsApp
+function sanitizePhoneNumber(rawNumber) {
+  if (!rawNumber) return ''
+  let cleaned = String(rawNumber).replace(/\D/g, '')
+  if (!cleaned) return ''
+  return cleaned
+}
+
+// Carregar campanhas do SQLite na inicialização e recuperar com segurança campanhas em RUNNING
 async function loadCampaigns() {
   try {
     const rows = await query('SELECT * FROM campaigns ORDER BY createdAt DESC')
@@ -13,6 +22,20 @@ async function loadCampaigns() {
       contacts: JSON.parse(r.contacts || '[]'),
       logs: JSON.parse(r.logs || '[]')
     }))
+
+    // Recuperação de falha/reinicialização do servidor:
+    // Campanhas que estavam em 'RUNNING' quando o servidor desligou são pausadas com segurança para que o operador possa retomar sem perder progresso
+    for (const camp of campaigns) {
+      if (camp.status === 'RUNNING') {
+        camp.status = 'PAUSED'
+        camp.logs.push({
+          time: new Date().toISOString(),
+          message: '⚠️ Servidor foi reiniciado durante a execução. Campanha pausada com segurança no ponto onde parou. Clique em "Retomar" para continuar.',
+          type: 'info'
+        })
+        await persistCampaign(camp)
+      }
+    }
   } catch (err) {
     console.error('[BroadcastManager] Erro ao carregar campanhas do SQLite:', err.message)
     campaigns = []
@@ -26,14 +49,18 @@ async function persistCampaign(camp) {
       INSERT INTO campaigns (
         id, name, sessionId, contacts, message, delayMin, delayMax,
         scheduledFor, status, currentIndex, sentCount, failedCount,
-        totalCount, logs, createdAt, startedAt, finishedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        totalCount, logs, mediaUrl, batchSize, batchWaitSec,
+        createdAt, startedAt, finishedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         status = excluded.status,
         currentIndex = excluded.currentIndex,
         sentCount = excluded.sentCount,
         failedCount = excluded.failedCount,
         logs = excluded.logs,
+        mediaUrl = excluded.mediaUrl,
+        batchSize = excluded.batchSize,
+        batchWaitSec = excluded.batchWaitSec,
         startedAt = excluded.startedAt,
         finishedAt = excluded.finishedAt
     `, [
@@ -51,6 +78,9 @@ async function persistCampaign(camp) {
       camp.failedCount || 0,
       camp.totalCount || (camp.contacts ? camp.contacts.length : 0),
       JSON.stringify(camp.logs || []),
+      camp.mediaUrl || null,
+      camp.batchSize || 0,
+      camp.batchWaitSec || 0,
       camp.createdAt || new Date().toISOString(),
       camp.startedAt || null,
       camp.finishedAt || null
@@ -65,6 +95,7 @@ loadCampaigns()
 
 // Spintax Resolver: {Olá|Oi|E aí}
 function resolveSpintax(text) {
+  if (!text) return ''
   const spintaxRegex = /\{([^{}]+)\}/g
   return text.replace(spintaxRegex, (match, choices) => {
     if (choices.toLowerCase() === 'nome' || choices.toLowerCase() === 'numero') {
@@ -77,7 +108,7 @@ function resolveSpintax(text) {
 
 // Personalização por contato
 function personalizeMessage(template, contact) {
-  let text = resolveSpintax(template)
+  let text = resolveSpintax(template || '')
   const name = contact.name || 'Amigo(a)'
   text = text.replace(/\{nome\}/gi, name)
   text = text.replace(/\{numero\}/gi, contact.number)
@@ -91,35 +122,51 @@ function sleep(ms) {
 /**
  * Cria uma nova campanha (imediata ou agendada)
  */
-function createCampaign({ name, sessionId, contacts, message, delayMin = 5, delayMax = 12, scheduledFor = null }) {
+function createCampaign({
+  name,
+  sessionId,
+  contacts,
+  message,
+  delayMin = 5,
+  delayMax = 12,
+  scheduledFor = null,
+  mediaUrl = null,
+  batchSize = 0,
+  batchWaitSec = 0
+}) {
   const id = 'camp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)
   const now = new Date().toISOString()
   
   const isScheduled = !!scheduledFor && new Date(scheduledFor).getTime() > Date.now()
   const status = isScheduled ? 'SCHEDULED' : 'PENDING'
 
+  const formattedContacts = contacts.map(c => ({
+    number: sanitizePhoneNumber(c.number),
+    name: c.name || '',
+    status: 'PENDING', // PENDING, SENT, FAILED
+    sentAt: null,
+    error: null
+  })).filter(c => c.number.length >= 8)
+
   const newCamp = {
     id,
     name: name || `Campanha ${new Date().toLocaleDateString('pt-BR')}`,
     sessionId,
-    contacts: contacts.map(c => ({
-      number: c.number,
-      name: c.name || '',
-      status: 'PENDING', // PENDING, SENT, FAILED
-      sentAt: null,
-      error: null
-    })),
-    message,
+    contacts: formattedContacts,
+    message: message || '',
+    mediaUrl: mediaUrl ? String(mediaUrl).trim() : null,
     delayMin: parseInt(delayMin) || 5,
     delayMax: parseInt(delayMax) || 12,
+    batchSize: Math.max(0, parseInt(batchSize) || 0),
+    batchWaitSec: Math.max(0, parseInt(batchWaitSec) || 0),
     scheduledFor: isScheduled ? new Date(scheduledFor).toISOString() : null,
     status, // SCHEDULED, PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED
     currentIndex: 0,
     sentCount: 0,
     failedCount: 0,
-    totalCount: contacts.length,
+    totalCount: formattedContacts.length,
     logs: [
-      { time: now, message: `Campanha criada com ${contacts.length} contatos.`, type: 'info' }
+      { time: now, message: `Campanha criada com ${formattedContacts.length} contatos válidos.`, type: 'info' }
     ],
     createdAt: now,
     startedAt: null,
@@ -217,6 +264,29 @@ async function startCampaignExecution(campaignId) {
   persistCampaign(camp)
 
   setImmediate(async () => {
+    // Pré-carregar mídia caso exista URL para evitar baixar repetidamente
+    let cachedMedia = null
+    if (camp.mediaUrl) {
+      try {
+        camp.logs.push({
+          time: new Date().toISOString(),
+          message: `Baixando mídia anexada de: ${camp.mediaUrl}...`,
+          type: 'info'
+        })
+        persistCampaign(camp)
+        cachedMedia = await MessageMedia.fromUrl(camp.mediaUrl, { unsafeMime: true })
+      } catch (err) {
+        camp.logs.push({
+          time: new Date().toISOString(),
+          message: `⚠️ Erro ao baixar mídia (${err.message}). Disparos continuarão apenas com texto.`,
+          type: 'error'
+        })
+        persistCampaign(camp)
+      }
+    }
+
+    let batchCount = 0
+
     while (camp.status === 'RUNNING' && camp.currentIndex < camp.contacts.length) {
       const contactItem = camp.contacts[camp.currentIndex]
       const client = sessions.get(camp.sessionId)
@@ -236,7 +306,14 @@ async function startCampaignExecution(campaignId) {
       const content = personalizeMessage(camp.message, contactItem)
 
       try {
-        await client.sendMessage(formattedChatId, content)
+        if (cachedMedia) {
+          // Enviar com mídia e legenda personalizada
+          await client.sendMessage(formattedChatId, cachedMedia, { caption: content || undefined })
+        } else {
+          // Enviar somente texto
+          await client.sendMessage(formattedChatId, content)
+        }
+
         contactItem.status = 'SENT'
         contactItem.sentAt = new Date().toISOString()
         camp.sentCount++
@@ -257,13 +334,28 @@ async function startCampaignExecution(campaignId) {
       }
 
       camp.currentIndex++
+      batchCount++
       persistCampaign(camp)
 
+      // Se ainda houver contatos e o status continuar RUNNING
       if (camp.status === 'RUNNING' && camp.currentIndex < camp.contacts.length) {
-        const min = Math.max(2, camp.delayMin || 5)
-        const max = Math.max(min, camp.delayMax || 12)
-        const randomDelaySec = Math.floor(Math.random() * (max - min + 1)) + min
-        await sleep(randomDelaySec * 1000)
+        // 1. Verificar pausa por lote (Cooling-off anti-bloqueio)
+        if (camp.batchSize > 0 && camp.batchWaitSec > 0 && batchCount >= camp.batchSize) {
+          batchCount = 0
+          camp.logs.push({
+            time: new Date().toISOString(),
+            message: `☕ [Pausa Anti-Bloqueio] Lote de ${camp.batchSize} mensagens atingido. Pausando por ${camp.batchWaitSec} segundos para descanso da linha...`,
+            type: 'info'
+          })
+          persistCampaign(camp)
+          await sleep(camp.batchWaitSec * 1000)
+        } else {
+          // 2. Intervalo randômico entre mensagens
+          const min = Math.max(2, camp.delayMin || 5)
+          const max = Math.max(min, camp.delayMax || 12)
+          const randomDelaySec = Math.floor(Math.random() * (max - min + 1)) + min
+          await sleep(randomDelaySec * 1000)
+        }
       }
     }
 

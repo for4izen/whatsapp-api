@@ -573,15 +573,34 @@
                   <span class="form-hint">Dica anti-bloqueio: use Spintax <code>{Olá|Oi|E aí}</code> para enviar saudações variadas a cada número.</span>
                 </div>
 
+                <!-- Media / Attachment (Optional) -->
+                <div class="form-group">
+                  <label for="broadcastMediaUrl">URL da Mídia / Anexo (Opcional):</label>
+                  <input type="url" id="broadcastMediaUrl" class="form-input" placeholder="https://exemplo.com/imagem.jpg ou documento.pdf">
+                  <span class="form-hint">Se preenchido, a mensagem acima será enviada como legenda da imagem/vídeo/documento.</span>
+                </div>
+
                 <!-- Anti-ban Delay Settings -->
                 <div class="form-row-2">
                   <div class="form-group">
-                    <label for="delayMinInput">Intervalo Mínimo (segundos):</label>
+                    <label for="delayMinInput">Intervalo Mínimo (seg):</label>
                     <input type="number" id="delayMinInput" min="2" max="120" value="5" class="form-input" required>
                   </div>
                   <div class="form-group">
-                    <label for="delayMaxInput">Intervalo Máximo (segundos):</label>
+                    <label for="delayMaxInput">Intervalo Máximo (seg):</label>
                     <input type="number" id="delayMaxInput" min="3" max="180" value="12" class="form-input" required>
+                  </div>
+                </div>
+
+                <!-- Anti-ban Batch Cooling-off -->
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="batchSizeInput">A cada X mensagens:</label>
+                    <input type="number" id="batchSizeInput" min="0" max="500" value="0" class="form-input" placeholder="Ex: 30 (0 = desativado)">
+                  </div>
+                  <div class="form-group">
+                    <label for="batchWaitSecInput">Pausar linha por (seg):</label>
+                    <input type="number" id="batchWaitSecInput" min="0" max="600" value="0" class="form-input" placeholder="Ex: 60 (0 = desativado)">
                   </div>
                 </div>
 

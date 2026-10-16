@@ -64,11 +64,19 @@ db.serialize(() => {
       failedCount INTEGER DEFAULT 0,
       totalCount INTEGER DEFAULT 0,
       logs TEXT,
+      mediaUrl TEXT,
+      batchSize INTEGER DEFAULT 0,
+      batchWaitSec INTEGER DEFAULT 0,
       createdAt TEXT,
       startedAt TEXT,
       finishedAt TEXT
     )
   `)
+
+  // Migrações graduais de colunas adicionais para campanhas
+  db.run('ALTER TABLE campaigns ADD COLUMN mediaUrl TEXT;', () => {})
+  db.run('ALTER TABLE campaigns ADD COLUMN batchSize INTEGER DEFAULT 0;', () => {})
+  db.run('ALTER TABLE campaigns ADD COLUMN batchWaitSec INTEGER DEFAULT 0;', () => {})
 
   db.run(`
     CREATE TABLE IF NOT EXISTS typebot_flows (

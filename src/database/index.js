@@ -147,6 +147,20 @@ db.serialize(() => {
     )
   `)
 
+  // Tabela de instâncias / sessões com metadados e webhook individual por sessão
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      sessionId TEXT PRIMARY KEY,
+      name TEXT,
+      phone TEXT,
+      tag TEXT,
+      webhook TEXT,
+      status TEXT DEFAULT 'DISCONNECTED',
+      createdAt TEXT,
+      updatedAt TEXT
+    )
+  `)
+
   // Migrações graduais de colunas adicionais se a tabela já existia
   db.run('ALTER TABLE message_logs ADD COLUMN chatName TEXT;', () => {})
   db.run('ALTER TABLE message_logs ADD COLUMN senderName TEXT;', () => {})

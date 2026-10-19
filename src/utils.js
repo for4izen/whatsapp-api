@@ -2,10 +2,35 @@ const axios = require('axios')
 const { globalApiKey, disabledCallbacks } = require('./config')
 
 // Trigger webhook endpoint
-const triggerWebhook = (webhookURL, sessionId, dataType, data) => {
-  return false; //removido devido ao uso de ram e processamento
-  // axios.post(webhookURL, { dataType, data, sessionId }, { headers: { 'x-api-key': globalApiKey } })
-  //   .catch(error => console.error('Failed to send new message webhook:', sessionId, dataType, error.message, data || ''))
+const triggerWebhook = async (webhookURL, sessionId, dataType, data) => {
+  // Processa apenas mensagens recebidas e mídias para evitar alto consumo de memória/rede
+  if (dataType !== 'message' && dataType !== 'media') {
+    return false
+  }
+
+  // Consulta o webhook configurado especificamente para esta instância no SQLite
+  let targetUrl = null
+  try {
+    const { getSessionById } = require('./database/sessionManager')
+    const sessionRecord = await getSessionById(sessionId)
+    if (sessionRecord && sessionRecord.webhook) {
+      targetUrl = sessionRecord.webhook.trim()
+    }
+  } catch (err) {
+    console.error(`[Webhook] Erro ao buscar webhook da sessão ${sessionId}:`, err.message)
+  }
+
+  // Se a instância NÃO tem webhook configurado, não envia para lugar nenhum
+  if (!targetUrl) {
+    return false
+  }
+
+  console.log(`[Webhook] Evento: ${dataType} | Session: ${sessionId} | URL da Instância: ${targetUrl}`)
+
+  console.log(`[Webhook] Enviando ${dataType} para ${targetUrl}...`)
+  axios.post(targetUrl, { dataType, data, sessionId }, { headers: { 'x-api-key': globalApiKey } })
+    .then(res => console.log(`[Webhook] Sucesso (${res.status}) enviado para ${targetUrl}`))
+    .catch(error => console.error('[Webhook] Falha ao enviar:', sessionId, dataType, error.message))
 }
 
 // Function to send a response with error status and message

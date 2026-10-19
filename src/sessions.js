@@ -272,6 +272,21 @@ const initializeEvents = (client, sessionId) => {
   checkIfEventisEnabled('message')
     .then(_ => {
       client.on('message', async (message) => {
+        // Se vier com identificador moderno @lid, resolve o número de telefone real
+        if (message.from && message.from.includes('@lid') && typeof message.getContact === 'function') {
+          try {
+            const contact = await Promise.race([
+              message.getContact(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+            ])
+            if (contact && contact.number) {
+              message.senderPhone = contact.number
+            }
+          } catch (e) {
+            // timeout/erro ao obter contato
+          }
+        }
+
         // Gravar mensagem recebida no SQLite
         logMessage(sessionId, message, 'IN')
 
@@ -410,7 +425,14 @@ const initializeEvents = (client, sessionId) => {
 
   checkIfEventisEnabled('ready')
     .then(_ => {
-      client.on('ready', () => {
+      client.on('ready', async () => {
+        try {
+          const { updateSessionStatus } = require('./database/sessionManager')
+          const myNumber = client.info?.wid?.user || ''
+          await updateSessionStatus(sessionId, 'CONNECTED', myNumber)
+        } catch (e) {
+          // ignore
+        }
         triggerWebhook(sessionWebhook, sessionId, 'ready')
       })
     })

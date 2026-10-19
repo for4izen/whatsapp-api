@@ -114,6 +114,11 @@ sessionRouter.get('/terminateAll', sessionController.terminateAllSessions)
 sessionRouter.get('/settings/:sessionId', middleware.sessionNameValidation, sessionController.getSessionSettingsHandler)
 sessionRouter.post('/settings/:sessionId', middleware.sessionNameValidation, sessionController.updateSessionSettingsHandler)
 
+// Metadados da instância (nome, telefone, tag, webhook por sessão)
+sessionRouter.get('/database/list', sessionController.listDatabaseSessionsHandler)
+sessionRouter.get('/metadata/:sessionId', middleware.sessionNameValidation, sessionController.getSessionMetaHandler)
+sessionRouter.post('/metadata/:sessionId', middleware.sessionNameValidation, sessionController.updateSessionMetaHandler)
+
 /**
  * ================
  * CLIENT ENDPOINTS

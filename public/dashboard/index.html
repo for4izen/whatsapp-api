@@ -218,6 +218,13 @@
           </svg>
           <span>🚀 Envio em Massa & Listas</span>
         </button>
+        <button class="btn btn-secondary btn-sm" id="btnInstanceSubSettings" onclick="switchInstanceSubTab('settings')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon" style="width: 16px; height: 16px;">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>⚙️ Configurações & Webhook</span>
+        </button>
       </div>
 
       <!-- SUBTAB 1: CHAT AO VIVO DA INSTÂNCIA -->
@@ -675,6 +682,44 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- SUBTAB 4: CONFIGURAÇÕES DA INSTÂNCIA (NOME, TAG E WEBHOOK) -->
+      <div id="instanceSubSectionSettings" class="instance-subsection hidden">
+        <div class="card-box" style="max-width: 760px; margin: 0 auto; padding: 2rem;">
+          <div class="box-header" style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+            <div>
+              <h3 class="box-title" style="font-size: 1.25rem;">⚙️ Configurações da Instância</h3>
+              <p class="box-desc">Defina o nome de exibição, etiqueta/tag e o Webhook exclusivo para esta instância.</p>
+            </div>
+          </div>
+
+          <form id="instanceMetaForm" onsubmit="event.preventDefault(); saveInstanceMetadata();">
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <label for="instMetaName" style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Nome de Exibição da Instância:</label>
+              <input type="text" id="instMetaName" class="form-input" placeholder="Ex: Financeiro Elite, Atendimento Comercial, Suporte...">
+              <span class="form-hint">Nome amigável para identificar esta conexão no painel.</span>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <label for="instMetaTag" style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Tag / Categoria:</label>
+              <input type="text" id="instMetaTag" class="form-input" placeholder="Ex: financas, vendas, suporte, pessoal...">
+              <span class="form-hint">Utilizada para agrupar ou classificar suas instâncias.</span>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+              <label for="instMetaWebhook" style="font-weight: 600; display: block; margin-bottom: 0.4rem;">Webhook Personalizado (Opcional):</label>
+              <input type="url" id="instMetaWebhook" class="form-input" placeholder="Ex: http://elitefinance-api/api/webhook/whatsapp">
+              <span class="form-hint">Se configurado, todas as mensagens e mídias recebidas <strong>desta instância</strong> serão enviadas exclusivamente para esta URL. Se deixar em branco, usará a URL global do sistema.</span>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+              <button type="submit" class="btn btn-primary" id="btnSaveInstMeta">
+                <span>💾 Salvar Configurações</span>
+              </button>
+            </div>
+          </form>
         </div>
       </div>
 

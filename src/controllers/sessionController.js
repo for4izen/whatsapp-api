@@ -415,8 +415,46 @@ const updateSessionSettingsHandler = async (req, res) => {
   }
 }
 
+/**
+ * Retorna todas as sessões cadastradas no SQLite (com nome, telefone, tag, webhook)
+ */
+const listDatabaseSessionsHandler = async (req, res) => {
+  try {
+    const { getAllSessions } = require('../database/sessionManager')
+    const list = await getAllSessions()
+    res.json({ success: true, data: list })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+/**
+ * Retorna ou atualiza metadados de uma sessão específica (nome, tag, webhook, telefone)
+ */
+const getSessionMetaHandler = async (req, res) => {
+  try {
+    const { getSessionById } = require('../database/sessionManager')
+    const data = await getSessionById(req.params.sessionId)
+    res.json({ success: true, data })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
+const updateSessionMetaHandler = async (req, res) => {
+  try {
+    const { upsertSession } = require('../database/sessionManager')
+    const { name, phone, tag, webhook } = req.body
+    const updated = await upsertSession(req.params.sessionId, { name, phone, tag, webhook })
+    res.json({ success: true, data: updated })
+  } catch (error) {
+    sendErrorResponse(res, 500, error.message)
+  }
+}
+
 module.exports = {
   listSessions,
+  listDatabaseSessionsHandler,
   startSession,
   statusSession,
   sessionQrCode,
@@ -426,5 +464,7 @@ module.exports = {
   terminateInactiveSessions,
   terminateAllSessions,
   getSessionSettingsHandler,
-  updateSessionSettingsHandler
+  updateSessionSettingsHandler,
+  getSessionMetaHandler,
+  updateSessionMetaHandler
 }

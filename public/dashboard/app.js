@@ -1619,18 +1619,22 @@ function switchInstanceSubTab(subTab) {
   const btnChat = document.getElementById('btnInstanceSubChat')
   const btnBot = document.getElementById('btnInstanceSubBot')
   const btnBroadcast = document.getElementById('btnInstanceSubBroadcast')
+  const btnSettings = document.getElementById('btnInstanceSubSettings')
 
   const sectionChat = document.getElementById('instanceSubSectionChat')
   const sectionBot = document.getElementById('instanceSubSectionBot')
   const sectionBroadcast = document.getElementById('instanceSubSectionBroadcast')
+  const sectionSettings = document.getElementById('instanceSubSectionSettings')
 
   if (btnChat) btnChat.classList.remove('active')
   if (btnBot) btnBot.classList.remove('active')
   if (btnBroadcast) btnBroadcast.classList.remove('active')
+  if (btnSettings) btnSettings.classList.remove('active')
 
   if (sectionChat) sectionChat.classList.add('hidden')
   if (sectionBot) sectionBot.classList.add('hidden')
   if (sectionBroadcast) sectionBroadcast.classList.add('hidden')
+  if (sectionSettings) sectionSettings.classList.add('hidden')
 
   if (subTab === 'chat') {
     if (btnChat) btnChat.classList.add('active')
@@ -1654,6 +1658,65 @@ function switchInstanceSubTab(subTab) {
     renderContactLists()
     fetchServerCampaigns()
     initBroadcastMediaRows()
+  } else if (subTab === 'settings') {
+    if (btnSettings) btnSettings.classList.add('active')
+    if (sectionSettings) sectionSettings.classList.remove('hidden')
+    loadInstanceMetadata(currentTypebotSessionId)
+  }
+}
+
+// Carrega os metadados da instância (nome, tag, webhook) da API
+async function loadInstanceMetadata(sessionId) {
+  if (!sessionId) return
+  try {
+    const res = await apiRequest(`/session/metadata/${sessionId}`)
+    const json = await res.json()
+    if (json.success && json.data) {
+      document.getElementById('instMetaName').value = json.data.name || ''
+      document.getElementById('instMetaTag').value = json.data.tag || ''
+      document.getElementById('instMetaWebhook').value = json.data.webhook || ''
+    } else {
+      document.getElementById('instMetaName').value = sessionId
+      document.getElementById('instMetaTag').value = ''
+      document.getElementById('instMetaWebhook').value = ''
+    }
+  } catch (e) {
+    console.error('Erro ao carregar metadados da instância:', e)
+  }
+}
+
+// Salva os metadados da instância (nome, tag, webhook)
+async function saveInstanceMetadata() {
+  if (!currentTypebotSessionId) return
+  const name = document.getElementById('instMetaName').value.trim()
+  const tag = document.getElementById('instMetaTag').value.trim()
+  const webhook = document.getElementById('instMetaWebhook').value.trim()
+
+  const btn = document.getElementById('btnSaveInstMeta')
+  const originalHtml = btn.innerHTML
+  btn.disabled = true
+  btn.innerHTML = '<span>Salvando...</span>'
+
+  try {
+    const res = await apiRequest(`/session/metadata/${currentTypebotSessionId}`, {
+      method: 'POST',
+      body: JSON.stringify({ name, tag, webhook })
+    })
+    const json = await res.json()
+    if (json.success) {
+      showToast('Configurações da instância salvas com sucesso!', 'success')
+      // Atualiza o título na tela
+      if (name) {
+        document.getElementById('instancePageSessionName').textContent = `${name} (${currentTypebotSessionId})`
+      }
+    } else {
+      showToast(json.message || 'Falha ao salvar configurações.', 'error')
+    }
+  } catch (e) {
+    showToast('Erro de conexão ao salvar configurações.', 'error')
+  } finally {
+    btn.disabled = false
+    btn.innerHTML = originalHtml
   }
 }
 

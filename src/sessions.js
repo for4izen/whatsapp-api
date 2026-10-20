@@ -1,4 +1,4 @@
-const { Client, LocalAuth } = require('whatsapp-web.js')
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js')
 const fs = require('fs')
 const path = require('path')
 const sessions = new Map()
@@ -303,25 +303,132 @@ const initializeEvents = (client, sessionId) => {
           console.log(`[MediaLog] Mensagem recebida com mídia! Session: ${sessionId} | ID: ${message.id?._serialized || message.id} | Type: ${message.type}`)
           if (typeof message.downloadMedia === 'function') {
             const tryDownloadWithRetry = async (retriesLeft = 4, delayMs = 1500) => {
+              let messageMedia = null
               try {
-                const messageMedia = await message.downloadMedia()
-                if (messageMedia && messageMedia.data) {
-                  console.log(`[MediaLog] ✅ Mídia baixada com sucesso! Mime: ${messageMedia.mimetype} | Tamanho Base64: ${messageMedia.data.length} caracteres`)
-                  // Salva imediatamente no banco e disco com o buffer disponível
-                  logMessage(sessionId, message, 'IN', messageMedia)
-                  checkIfEventisEnabled('media').then(_ => {
-                    console.log(`[MediaLog] Disparando webhook de mídia para ${sessionId}...`)
-                    triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
-                  }).catch(() => {
-                    triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
-                  })
-                  return
-                } else {
-                  console.warn(`[MediaLog] Tentativa: message.downloadMedia() retornou vazio (aguardando download pelo navegador)`)
-                }
+                messageMedia = await message.downloadMedia()
               } catch (e) {
                 const errMsg = e?.message || e?.toString() || ''
                 console.warn(`[MediaLog] Aviso temporário no download da mídia (${sessionId}): ${errMsg}`)
+              }
+
+              // Fallback robusto via client.pupPage caso a biblioteca padrão falhe internamente
+              if ((!messageMedia || !messageMedia.data) && client.pupPage) {
+                try {
+                  const msgIdStr = (typeof message.id === 'object' && message.id !== null)
+                    ? (message.id._serialized || message.id.id || String(message.id))
+                    : String(message.id || '')
+
+                  const directResult = await client.pupPage.evaluate(async (msgId, rawId) => {
+                    try {
+                      const MsgCollection = window.require('WAWebCollections')?.Msg
+                      let msg = MsgCollection?.get(msgId) ||
+                        (await MsgCollection?.getMessagesById?.([msgId]).catch(() => null))?.messages?.[0]
+
+                      if (!msg && rawId) {
+                        const altId = rawId._serialized || rawId.$1 || rawId.id
+                        if (altId && altId !== msgId) {
+                          msg = MsgCollection?.get(altId) ||
+                            (await MsgCollection?.getMessagesById?.([altId]).catch(() => null))?.messages?.[0]
+                        }
+                      }
+
+                      if (!msg && MsgCollection?.getModelsArray) {
+                        const models = MsgCollection.getModelsArray()
+                        msg = models.find(m => {
+                          const s = m.id?._serialized || m.id?.$1 || m.id?.id || String(m.id || '')
+                          return s === msgId || (rawId && (s === rawId.id || s === rawId._serialized))
+                        })
+                      }
+
+                      if (!msg) return null
+
+                      // 1. Tentar resolver a mídia se necessário
+                      if (msg.mediaData && msg.mediaData.mediaStage !== 'RESOLVED' && typeof msg.downloadMedia === 'function') {
+                        await msg.downloadMedia({ downloadEvenIfExpensive: true, rmrReason: 1 }).catch(() => {})
+                      }
+
+                      // 2. Descriptografia direta via WAWebDownloadManager
+                      let decrypted = null
+                      const downloadManager = window.require('WAWebDownloadManager')?.downloadManager
+                      if (downloadManager && msg.directPath) {
+                        const mockQpl = { addAnnotations: () => mockQpl, addPoint: () => mockQpl }
+                        const opts = {
+                          directPath: msg.directPath,
+                          encFilehash: msg.encFilehash,
+                          filehash: msg.filehash,
+                          mediaKey: msg.mediaKey,
+                          mediaKeyTimestamp: msg.mediaKeyTimestamp,
+                          type: msg.type,
+                          mimetype: msg.mimetype || 'image/jpeg',
+                          signal: new AbortController().signal,
+                          downloadQpl: mockQpl
+                        }
+
+                        if (typeof downloadManager.downloadAndMaybeDecrypt === 'function') {
+                          try { decrypted = await downloadManager.downloadAndMaybeDecrypt(opts) } catch (_) {}
+                        }
+                        if (!decrypted && typeof downloadManager.downloadAndDecrypt === 'function') {
+                          try { decrypted = await downloadManager.downloadAndDecrypt(opts) } catch (_) {}
+                        }
+                      }
+
+                      if (decrypted) {
+                        const data = await window.WWebJS.arrayBufferToBase64Async(decrypted)
+                        return { data, mimetype: msg.mimetype || 'image/jpeg', filename: msg.filename, filesize: msg.size }
+                      }
+
+                      // 3. Extração via Blob em memória
+                      if (msg.mediaData?.mediaBlob) {
+                        try {
+                          const blob = msg.mediaData.mediaBlob
+                          const ab = typeof blob.read === 'function' ? await blob.read() : (blob instanceof Blob ? await blob.arrayBuffer() : null)
+                          if (ab && ab.byteLength > 0) {
+                            const data = await window.WWebJS.arrayBufferToBase64Async(ab)
+                            return { data, mimetype: msg.mimetype || blob.type || 'image/jpeg', filename: msg.filename, filesize: msg.size || ab.byteLength }
+                          }
+                        } catch (_) {}
+                      }
+
+                      // 4. Extração via Blob URL ativa
+                      const renderUrl = msg.mediaData?.renderableUrl || msg.mediaData?._renderableUrl
+                      if (renderUrl && typeof renderUrl === 'string' && renderUrl.startsWith('blob:')) {
+                        try {
+                          const resp = await fetch(renderUrl)
+                          const ab = await resp.arrayBuffer()
+                          if (ab && ab.byteLength > 0) {
+                            const data = await window.WWebJS.arrayBufferToBase64Async(ab)
+                            return { data, mimetype: msg.mimetype || resp.headers.get('content-type') || 'image/jpeg', filename: msg.filename, filesize: ab.byteLength }
+                          }
+                        } catch (_) {}
+                      }
+
+                      return null
+                    } catch (_) {
+                      return null
+                    }
+                  }, msgIdStr, message.id)
+
+                  if (directResult && directResult.data) {
+                    messageMedia = new MessageMedia(directResult.mimetype, directResult.data, directResult.filename, directResult.filesize)
+                  }
+                } catch (pupErr) {
+                  console.warn(`[MediaLog] Fallback direto via navegador falhou:`, pupErr.message)
+                }
+              }
+
+              if (messageMedia && messageMedia.data) {
+                console.log(`[MediaLog] ✅ Mídia baixada com sucesso! Mime: ${messageMedia.mimetype} | Tamanho Base64: ${messageMedia.data.length} caracteres`)
+                // Salva imediatamente no banco e disco com o buffer disponível
+                logMessage(sessionId, message, 'IN', messageMedia)
+                checkIfEventisEnabled('media').then(_ => {
+                  console.log(`[MediaLog] Disparando webhook de mídia para ${sessionId}...`)
+                  triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
+                }).catch(() => {
+                  triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
+                })
+                return
+              } else {
+                console.warn(`[MediaLog] Tentativa: mídia ainda pendente no navegador (aguardando descriptografia)`)
               }
 
               if (retriesLeft > 1) {

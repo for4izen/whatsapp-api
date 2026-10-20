@@ -300,24 +300,31 @@ const initializeEvents = (client, sessionId) => {
         }
 
         if (message.hasMedia && (!message._data?.size || message._data.size < maxAttachmentSize)) {
+          console.log(`[MediaLog] Mensagem recebida com mídia! Session: ${sessionId} | ID: ${message.id?._serialized || message.id} | Type: ${message.type}`)
           if (typeof message.downloadMedia === 'function') {
+            console.log(`[MediaLog] Chamando message.downloadMedia()...`)
             message.downloadMedia()
               .then(messageMedia => {
-                if (messageMedia) {
+                if (messageMedia && messageMedia.data) {
+                  console.log(`[MediaLog] Mídia baixada com sucesso! Mime: ${messageMedia.mimetype} | Tamanho Base64: ${messageMedia.data.length} caracteres`)
                   // Salva imediatamente no banco e disco com o buffer disponível
                   logMessage(sessionId, message, 'IN', messageMedia)
                   checkIfEventisEnabled('media').then(_ => {
+                    console.log(`[MediaLog] Disparando webhook de mídia para ${sessionId}...`)
                     triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
-                  }).catch(() => {})
+                  }).catch(() => {
+                    console.log(`[MediaLog] Evento media desabilitado nos callbacks, mas tentando webhook...`)
+                    triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
+                  })
+                } else {
+                  console.warn(`[MediaLog] message.downloadMedia() retornou vazio/sem dados:`, messageMedia)
                 }
               })
               .catch(e => {
-                // Mídias efêmeras ou expiradas
-                const errStr = e?.message || e?.toString() || ''
-                if (errStr && errStr !== 'r') {
-                  console.warn(`[Sessions] Aviso ao baixar mídia (${sessionId}):`, errStr)
-                }
+                console.error(`[MediaLog] ERRO ao executar message.downloadMedia() na sessão ${sessionId}:`, e?.message || e)
               })
+          } else {
+            console.warn(`[MediaLog] message.downloadMedia NÃO é uma função no objeto message!`)
           }
         }
         if (setMessagesAsSeen) {

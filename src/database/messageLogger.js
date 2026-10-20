@@ -146,10 +146,12 @@ async function logMessage(sessionId, message, direction = 'IN', existingMedia = 
           }
         }
 
+        console.log(`[MediaDiskLog] Tentando gravar arquivo no disco: ${fullPath} | Tamanho: ${newBuffer.length} bytes`)
         fs.writeFileSync(fullPath, newBuffer)
+        console.log(`[MediaDiskLog] ✅ Arquivo gravado com sucesso no disco: ${fullPath}`)
         return { path: `/media/${fileName}`, mime: mType }
       } catch (err) {
-        console.error(`[MessageLogger] Erro ao gravar arquivo de mídia (${messageId}):`, err.message)
+        console.error(`[MediaDiskLog] ❌ ERRO ao gravar arquivo no disco (${messageId}):`, err.message, err.stack)
         return null
       }
     }

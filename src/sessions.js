@@ -302,27 +302,37 @@ const initializeEvents = (client, sessionId) => {
         if (message.hasMedia && (!message._data?.size || message._data.size < maxAttachmentSize)) {
           console.log(`[MediaLog] Mensagem recebida com mídia! Session: ${sessionId} | ID: ${message.id?._serialized || message.id} | Type: ${message.type}`)
           if (typeof message.downloadMedia === 'function') {
-            console.log(`[MediaLog] Chamando message.downloadMedia()...`)
-            message.downloadMedia()
-              .then(messageMedia => {
+            const tryDownloadWithRetry = async (retriesLeft = 4, delayMs = 1500) => {
+              try {
+                const messageMedia = await message.downloadMedia()
                 if (messageMedia && messageMedia.data) {
-                  console.log(`[MediaLog] Mídia baixada com sucesso! Mime: ${messageMedia.mimetype} | Tamanho Base64: ${messageMedia.data.length} caracteres`)
+                  console.log(`[MediaLog] ✅ Mídia baixada com sucesso! Mime: ${messageMedia.mimetype} | Tamanho Base64: ${messageMedia.data.length} caracteres`)
                   // Salva imediatamente no banco e disco com o buffer disponível
                   logMessage(sessionId, message, 'IN', messageMedia)
                   checkIfEventisEnabled('media').then(_ => {
                     console.log(`[MediaLog] Disparando webhook de mídia para ${sessionId}...`)
                     triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
                   }).catch(() => {
-                    console.log(`[MediaLog] Evento media desabilitado nos callbacks, mas tentando webhook...`)
                     triggerWebhook(sessionWebhook, sessionId, 'media', { messageMedia, message })
                   })
+                  return
                 } else {
-                  console.warn(`[MediaLog] message.downloadMedia() retornou vazio/sem dados:`, messageMedia)
+                  console.warn(`[MediaLog] Tentativa: message.downloadMedia() retornou vazio (aguardando download pelo navegador)`)
                 }
-              })
-              .catch(e => {
-                console.error(`[MediaLog] ERRO ao executar message.downloadMedia() na sessão ${sessionId}:`, e?.message || e)
-              })
+              } catch (e) {
+                const errMsg = e?.message || e?.toString() || ''
+                console.warn(`[MediaLog] Aviso temporário no download da mídia (${sessionId}): ${errMsg}`)
+              }
+
+              if (retriesLeft > 1) {
+                console.log(`[MediaLog] Aguardando ${delayMs}ms para tentar baixar novamente a mídia... (${retriesLeft - 1} tentativas restantes)`)
+                setTimeout(() => tryDownloadWithRetry(retriesLeft - 1, delayMs * 1.5), delayMs)
+              } else {
+                console.error(`[MediaLog] ❌ Esgotadas as tentativas de baixar a mídia na sessão ${sessionId}.`)
+              }
+            }
+
+            tryDownloadWithRetry()
           } else {
             console.warn(`[MediaLog] message.downloadMedia NÃO é uma função no objeto message!`)
           }

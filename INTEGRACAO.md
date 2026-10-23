@@ -51,40 +51,7 @@ Envie comprovantes, PDFs, fotos ou catálogos.
 }
 ```
 
----
 
-### C. Criar Campanha em Massa (Imediata ou Agendada)
-Dispare para uma lista de clientes diretamente em segundo plano ou programe para uma data futura.
-
-- **Método**: `POST`
-- **Rota**: `/broadcast/create`
-- **Exemplo de Body para Disparo Imediato**:
-```json
-{
-  "name": "Aviso de Promoção",
-  "sessionId": "vendas",
-  "message": "{Olá|Oi} {nome}! Aproveite nossa promoção exclusiva hoje!",
-  "delayMin": 5,
-  "delayMax": 15,
-  "contacts": [
-    { "number": "5511999999999", "name": "Carlos" },
-    { "number": "5521988888888", "name": "Ana" }
-  ]
-}
-```
-
-- **Exemplo de Body para Disparo AGENDADO**:
-```json
-{
-  "name": "Lembrete de Vencimento",
-  "sessionId": "financeiro",
-  "message": "Olá {nome}, seu boleto vence hoje.",
-  "scheduledFor": "2026-09-15T09:00:00.000Z",
-  "contacts": [
-    { "number": "5511999999999", "name": "Carlos" }
-  ]
-}
-```
 
 ---
 

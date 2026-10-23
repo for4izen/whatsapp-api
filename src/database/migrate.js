@@ -2,8 +2,8 @@ const fs = require('fs')
 const path = require('path')
 const { run, get } = require('./index')
 
+
 const DATA_DIR = path.join(__dirname, '../../data')
-const CAMPAIGNS_FILE = path.join(DATA_DIR, 'campaigns.json')
 const USER_STATES_FILE = path.join(DATA_DIR, 'user_states.json')
 const FLOWS_DIR = path.join(DATA_DIR, 'flows')
 const LEGACY_FLOWS_FILE = path.join(DATA_DIR, 'typebot_flows.json')
@@ -12,48 +12,7 @@ const LOGS_DIR = path.join(DATA_DIR, 'logs')
 async function migrateData() {
   console.log('[Migration] Iniciando verificação e importação para SQLite...')
 
-  // 1. Migrar Campanhas
-  if (fs.existsSync(CAMPAIGNS_FILE)) {
-    try {
-      const content = fs.readFileSync(CAMPAIGNS_FILE, 'utf8')
-      const campaigns = JSON.parse(content || '[]')
-      for (const camp of campaigns) {
-        const exists = await get('SELECT id FROM campaigns WHERE id = ?', [camp.id])
-        if (!exists) {
-          await run(`
-            INSERT INTO campaigns (
-              id, name, sessionId, contacts, message, delayMin, delayMax,
-              scheduledFor, status, currentIndex, sentCount, failedCount,
-              totalCount, logs, createdAt, startedAt, finishedAt
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `, [
-            camp.id,
-            camp.name,
-            camp.sessionId,
-            JSON.stringify(camp.contacts || []),
-            camp.message,
-            camp.delayMin || 5,
-            camp.delayMax || 12,
-            camp.scheduledFor || null,
-            camp.status || 'PENDING',
-            camp.currentIndex || 0,
-            camp.sentCount || 0,
-            camp.failedCount || 0,
-            camp.totalCount || (camp.contacts ? camp.contacts.length : 0),
-            JSON.stringify(camp.logs || []),
-            camp.createdAt || new Date().toISOString(),
-            camp.startedAt || null,
-            camp.finishedAt || null
-          ])
-          console.log(`[Migration] Campanha migrada: ${camp.id}`)
-        }
-      }
-    } catch (err) {
-      console.error('[Migration] Erro ao migrar campaigns.json:', err.message)
-    }
-  }
-
-  // 2. Migrar Estados de Usuários
+  // 1. Migrar Estados de Usuários
   if (fs.existsSync(USER_STATES_FILE)) {
     try {
       const content = fs.readFileSync(USER_STATES_FILE, 'utf8')

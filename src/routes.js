@@ -12,9 +12,7 @@ const chatController = require('./controllers/chatController')
 const groupChatController = require('./controllers/groupChatController')
 const messageController = require('./controllers/messageController')
 const contactController = require('./controllers/contactController')
-const broadcastController = require('./controllers/broadcastController')
 const typebotController = require('./controllers/typebotController')
-
 /**
  * ================
  * HEALTH ENDPOINTS
@@ -28,28 +26,6 @@ if (enableLocalCallbackExample) {
   routes.post('/localCallbackExample', [middleware.apikey, middleware.rateLimiter], healthController.localCallbackExample)
 }
 
-/**
- * ================
- * BROADCAST & SCHEDULE ENDPOINTS
- * ================
- */
-
-const broadcastRouter = express.Router()
-broadcastRouter.use(middleware.apikey)
-routes.use('/broadcast', broadcastRouter)
-
-// Rotas de listas de contatos (banco de dados)
-broadcastRouter.get('/lists', broadcastController.getContactLists)
-broadcastRouter.post('/lists/save', broadcastController.saveContactList)
-broadcastRouter.delete('/lists/:id', broadcastController.deleteContactList)
-
-broadcastRouter.post('/create', broadcastController.createCampaign)
-broadcastRouter.get('/list', broadcastController.listCampaigns)
-broadcastRouter.get('/:id', broadcastController.getCampaign)
-broadcastRouter.post('/pause/:id', broadcastController.pauseCampaign)
-broadcastRouter.post('/resume/:id', broadcastController.resumeCampaign)
-broadcastRouter.post('/cancel/:id', broadcastController.cancelCampaign)
-broadcastRouter.delete('/:id', broadcastController.deleteCampaign)
 
 /**
  * ================

@@ -141,7 +141,6 @@
       </div>
     </div>
 
-    <!-- VIEW 2: BROADCAST & CONTACT LISTS -->
 
 
     <!-- ==========================================
@@ -211,13 +210,7 @@
           </svg>
           <span>🤖 Fluxo do Chatbot & Regras</span>
         </button>
-        <button class="btn btn-secondary btn-sm" id="btnInstanceSubBroadcast" onclick="switchInstanceSubTab('broadcast')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon" style="width: 16px; height: 16px;">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-          <span>🚀 Envio em Massa & Listas</span>
-        </button>
+
         <button class="btn btn-secondary btn-sm" id="btnInstanceSubSettings" onclick="switchInstanceSubTab('settings')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="icon" style="width: 16px; height: 16px;">
             <circle cx="12" cy="12" r="3"></circle>
@@ -496,194 +489,7 @@
       </div>
     </div>
 
-    <!-- SUBTAB 3: DISPARO EM MASSA & LISTAS DA INSTÂNCIA -->
-    <div id="instanceSubSectionBroadcast" class="instance-subsection hidden">
-        <div class="broadcast-layout">
-          <!-- Left Column: Contact Lists Manager -->
-          <div class="broadcast-col-lists">
-            <div class="card-box">
-              <div class="box-header">
-                <div>
-                  <h3 class="box-title">📋 Listas de Contatos</h3>
-                  <p class="box-desc">Listas segmentadas para esta instância.</p>
-                </div>
-                <button class="btn btn-primary btn-sm" onclick="openCreateListModal()">
-                  <span>+ Nova Lista</span>
-                </button>
-              </div>
 
-              <div id="contactListsContainer" class="lists-group">
-                <!-- Rendered via JS -->
-              </div>
-
-              <div class="box-footer-actions">
-                <button class="btn btn-secondary btn-sm" onclick="exportListsBackup()" title="Baixar arquivo de backup JSON">
-                  <span>📥 Exportar Backup</span>
-                </button>
-                <label class="btn btn-secondary btn-sm" style="margin: 0; cursor: pointer;" title="Importar arquivo de backup JSON">
-                  <span>📤 Importar</span>
-                  <input type="file" id="importListsFile" accept=".json" style="display: none;" onchange="importListsBackup(event)">
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right Column: Campaign Dispatcher & Progress -->
-          <div class="broadcast-col-campaign">
-            <div class="card-box">
-              <div class="box-header">
-                <div>
-                  <h3 class="box-title">🚀 Disparo em Massa</h3>
-                  <p class="box-desc">Configure mensagem, variações anti-ban e dispare por esta instância.</p>
-                </div>
-                <div id="campaignStatusBadge" class="badge badge-init">Pronto</div>
-              </div>
-
-              <form id="broadcastForm" onsubmit="event.preventDefault(); submitBroadcastCampaign();">
-                <input type="hidden" id="broadcastSessionSelect" value="">
-
-                <div class="form-row-2">
-                  <div class="form-group">
-                    <label for="campaignNameInput">Nome da Campanha:</label>
-                    <input type="text" id="campaignNameInput" class="form-input" placeholder="Ex: Promoção Fim de Semana, Lançamento..." required>
-                  </div>
-                  <div class="form-group">
-                    <label for="broadcastListSelect">Lista de Destinatários:</label>
-                    <select id="broadcastListSelect" class="form-select" required onchange="onBroadcastListChanged()">
-                      <option value="">Selecione uma lista de contatos...</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label for="scheduleDateTimeInput">Agendar Envio (Opcional):</label>
-                  <input type="datetime-local" id="scheduleDateTimeInput" class="form-input">
-                  <span class="form-hint">Deixe em branco para disparar imediatamente agora.</span>
-                </div>
-
-                <!-- List Details Quick Banner -->
-                <div id="selectedListBanner" class="info-banner hidden">
-                  <span id="selectedListInfoText">0 contatos selecionados</span>
-                </div>
-
-                <!-- Message Composer -->
-                <div class="form-group">
-                  <div class="label-with-tags">
-                    <label for="broadcastMessageText">Mensagem:</label>
-                    <div class="tag-shortcuts">
-                      <button type="button" class="btn-tag" onclick="insertTag('{nome}')" title="Substitui pelo nome do contato">{nome}</button>
-                      <button type="button" class="btn-tag" onclick="insertTag('{numero}')" title="Substitui pelo número">{numero}</button>
-                      <button type="button" class="btn-tag" onclick="insertTag('{Olá|Oi|Tudo bem?}')" title="Alterna textos aleatoriamente (Spintax)">{Spintax}</button>
-                    </div>
-                  </div>
-                  <textarea id="broadcastMessageText" class="form-textarea" rows="5" placeholder="Olá {nome}! Tudo bem? Veja as novidades que preparamos para você..."></textarea>
-                  <span class="form-hint">Dica anti-bloqueio: use Spintax <code>{Olá|Oi|E aí}</code> para enviar saudações variadas a cada número.</span>
-                </div>
-
-                <!-- Media / Attachments (Dynamic + List) -->
-                <div class="form-group">
-                  <div class="media-header-row">
-                    <label style="margin-bottom: 0;">Mídias / Anexos (Opcional):</label>
-                    <button type="button" class="btn btn-secondary btn-xs" onclick="addBroadcastMediaRow()">
-                      ➕ Adicionar Mídia
-                    </button>
-                  </div>
-                  <div id="broadcastMediaListContainer" class="media-inputs-container">
-                    <!-- Gerado dinamicamente via JS -->
-                  </div>
-                  <span class="form-hint">Se adicionar mídias, a mensagem acima será a legenda da primeira mídia e as demais serão enviadas sequencialmente em seguida.</span>
-                </div>
-
-                <!-- Anti-ban Delay Settings -->
-                <div class="form-row-2">
-                  <div class="form-group">
-                    <label for="delayMinInput">Intervalo Mínimo (seg):</label>
-                    <input type="number" id="delayMinInput" min="2" max="120" value="5" class="form-input" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="delayMaxInput">Intervalo Máximo (seg):</label>
-                    <input type="number" id="delayMaxInput" min="3" max="180" value="12" class="form-input" required>
-                  </div>
-                </div>
-
-                <!-- Anti-ban Batch Cooling-off -->
-                <div class="form-row-2">
-                  <div class="form-group">
-                    <label for="batchSizeInput">A cada X mensagens:</label>
-                    <input type="number" id="batchSizeInput" min="0" max="500" value="0" class="form-input" placeholder="Ex: 30 (0 = desativado)">
-                  </div>
-                  <div class="form-group">
-                    <label for="batchWaitSecInput">Pausar linha por (seg):</label>
-                    <input type="number" id="batchWaitSecInput" min="0" max="600" value="0" class="form-input" placeholder="Ex: 60 (0 = desativado)">
-                  </div>
-                </div>
-
-                <!-- Dispatch Action Buttons -->
-                <div class="broadcast-controls-bar">
-                  <button type="submit" id="btnStartBroadcast" class="btn btn-primary btn-lg">
-                    <span>🚀 Iniciar / Agendar</span>
-                  </button>
-                </div>
-              </form>
-
-              <!-- Real-time Progress & Metrics Panel -->
-              <div id="broadcastProgressSection" class="broadcast-progress-box hidden">
-                <div class="progress-stats-row">
-                  <div class="prog-stat">
-                    <span class="prog-stat-label">Total</span>
-                    <span class="prog-stat-val" id="progTotalCount">0</span>
-                  </div>
-                  <div class="prog-stat">
-                    <span class="prog-stat-label">Enviadas</span>
-                    <span class="prog-stat-val text-green" id="progSentCount">0</span>
-                  </div>
-                  <div class="prog-stat">
-                    <span class="prog-stat-label">Falhas</span>
-                    <span class="prog-stat-val text-red" id="progFailedCount">0</span>
-                  </div>
-                  <div class="prog-stat">
-                    <span class="prog-stat-label">Restantes</span>
-                    <span class="prog-stat-val text-dim" id="progRemainingCount">0</span>
-                  </div>
-                </div>
-
-                <!-- Progress Bar -->
-                <div class="progress-bar-wrap">
-                  <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
-                </div>
-
-                <!-- Live Execution Logs -->
-                <div class="live-log-container">
-                  <div class="log-header">
-                    <span id="liveLogTitle">Registro de Disparos ao Vivo</span>
-                    <button class="btn-clear-log" onclick="clearBroadcastLogs()">Limpar</button>
-                  </div>
-                  <div id="broadcastLogs" class="log-content">
-                    <div class="log-line">Aguardando início do disparo...</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Server Background Campaigns List -->
-              <div class="campaigns-history-section">
-                <div class="box-header" style="margin-top: 2rem; margin-bottom: 1rem;">
-                  <div>
-                    <h4 class="box-title">📊 Campanhas Desta Instância</h4>
-                    <p class="box-desc">Histórico e progresso em segundo plano gerenciados no SQLite.</p>
-                  </div>
-                  <button class="btn btn-secondary btn-sm" onclick="fetchServerCampaigns()">
-                    <span>🔄 Atualizar</span>
-                  </button>
-                </div>
-
-                <div id="serverCampaignsTableContainer" class="campaigns-table-wrap">
-                  <!-- Injetado dinamicamente via JS -->
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- SUBTAB 4: CONFIGURAÇÕES DA INSTÂNCIA (NOME, TAG E WEBHOOK) -->
       <div id="instanceSubSectionSettings" class="instance-subsection hidden">
@@ -846,48 +652,7 @@
 
 
 
-  <!-- Modal: Gerenciar / Criar / Editar Lista -->
-  <div id="manageListModal" class="modal-backdrop hidden">
-    <div class="modal-card modal-lg">
-      <div class="modal-header">
-        <h3 class="modal-title" id="manageListModalTitle">Nova Lista de Contatos</h3>
-        <button class="modal-close" onclick="closeModal('manageListModal')">&times;</button>
-      </div>
-      <form id="manageListForm" onsubmit="event.preventDefault(); saveContactList();">
-        <input type="hidden" id="editListId">
-        
-        <div class="form-row-2">
-          <div class="form-group">
-            <label for="listNameInput">Nome da Lista:</label>
-            <input type="text" id="listNameInput" class="form-input" placeholder="Ex: Clientes VIP, Leads Setembro..." required>
-          </div>
-          <div class="form-group">
-            <label for="listSessionSelect">Instância Vinculada:</label>
-            <select id="listSessionSelect" class="form-select">
-              <option value="*">🌐 Global (Todas as Instâncias)</option>
-            </select>
-          </div>
-        </div>
 
-        <div class="form-group">
-          <div class="label-with-hint">
-            <label for="listContactsInput">Contatos (Cole números ou Nome, Telefone):</label>
-            <span class="form-hint">Formatos aceitos: <code>5511999999999</code> ou <code>João, 5511999999999</code> ou <code>5511999999999; Maria</code></span>
-          </div>
-          <textarea id="listContactsInput" class="form-textarea" rows="8" placeholder="5511999999999&#10;5521988888888, Carlos Eduardo&#10;Maria; 5531977777777" required></textarea>
-        </div>
-
-        <div class="contacts-preview-badge" id="contactsCountPreview">
-          <span>0 contatos detectados</span>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeModal('manageListModal')">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveList">Salvar Lista</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- Modal: Nova Sessão -->
   <div id="newSessionModal" class="modal-backdrop hidden">

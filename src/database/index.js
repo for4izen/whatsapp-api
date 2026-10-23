@@ -48,47 +48,7 @@ db.serialize(() => {
   db.run('PRAGMA journal_mode = WAL;')
   db.run('PRAGMA foreign_keys = ON;')
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS campaigns (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      sessionId TEXT NOT NULL,
-      contacts TEXT NOT NULL,
-      message TEXT NOT NULL,
-      delayMin INTEGER DEFAULT 5,
-      delayMax INTEGER DEFAULT 12,
-      scheduledFor TEXT,
-      status TEXT NOT NULL,
-      currentIndex INTEGER DEFAULT 0,
-      sentCount INTEGER DEFAULT 0,
-      failedCount INTEGER DEFAULT 0,
-      totalCount INTEGER DEFAULT 0,
-      logs TEXT,
-      mediaUrl TEXT,
-      batchSize INTEGER DEFAULT 0,
-      batchWaitSec INTEGER DEFAULT 0,
-      createdAt TEXT,
-      startedAt TEXT,
-      finishedAt TEXT
-    )
-  `)
 
-  // Migrações graduais de colunas adicionais para campanhas
-  db.run('ALTER TABLE campaigns ADD COLUMN mediaUrl TEXT;', () => {})
-  db.run('ALTER TABLE campaigns ADD COLUMN batchSize INTEGER DEFAULT 0;', () => {})
-  db.run('ALTER TABLE campaigns ADD COLUMN batchWaitSec INTEGER DEFAULT 0;', () => {})
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS contact_lists (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      sessionScope TEXT DEFAULT '*',
-      contacts TEXT NOT NULL,
-      createdAt TEXT,
-      updatedAt TEXT
-    )
-  `)
-  db.run('CREATE INDEX IF NOT EXISTS idx_contact_lists_scope ON contact_lists(sessionScope);')
 
   db.run(`
     CREATE TABLE IF NOT EXISTS typebot_flows (
@@ -168,8 +128,7 @@ db.serialize(() => {
   db.run('ALTER TABLE message_logs ADD COLUMN mediaPath TEXT;', () => {})
   db.run('ALTER TABLE message_logs ADD COLUMN mimeType TEXT;', () => {})
 
-  db.run('CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);')
-  db.run('CREATE INDEX IF NOT EXISTS idx_campaigns_sessionId ON campaigns(sessionId);')
+
   db.run('CREATE INDEX IF NOT EXISTS idx_user_states_session ON user_states(sessionId);')
   db.run('CREATE INDEX IF NOT EXISTS idx_session_logs_session ON session_logs(sessionId);')
   db.run('CREATE INDEX IF NOT EXISTS idx_message_logs_session ON message_logs(sessionId);')
